@@ -82,6 +82,88 @@ def seed_enrollments(conn, ctx: dict) -> None:
             db.enroll(student_id, subject_id, target, conn=conn)
 
 
+# --- papers and marks (SAN-122) ----------------------------------------------
+# (max marks, topic, difficulty) per question, in paper order.
+PAPERS = {
+    "MCA231": {
+        "CIA-1": [(2, "Arrays", "easy"), (3, "Time complexity", "medium"),
+                  (5, "Recursion", "hard"), (5, "Linked lists", "medium"),
+                  (10, "Recursion", "hard")],
+        "CIA-2": [(2, "Stacks", "easy"), (2, "Queues", "easy"), (3, "Linked lists", "easy"),
+                  (3, "Time complexity", "medium"), (10, "Binary trees", "medium"),
+                  (10, "Tree traversal", "hard"), (10, "Recursion", "medium"),
+                  (10, "Stacks", "medium")],
+        "CIA-3": [(5, "Sorting", "easy"), (5, "Hashing", "medium"),
+                  (5, "Binary search trees", "medium"), (10, "Graph traversal", "hard")],
+    },
+    "MCA232": {
+        "CIA-1": [(2, "Data types", "easy"), (3, "Control flow", "easy"),
+                  (5, "Strings", "medium"), (5, "Functions", "medium"),
+                  (10, "Lists and tuples", "hard")],
+        "CIA-2": [(2, "Functions", "easy"), (3, "Dictionaries and sets", "easy"),
+                  (5, "Strings", "medium"), (10, "File handling", "medium"),
+                  (10, "Exception handling", "hard"), (10, "Classes and objects", "hard"),
+                  (10, "Dictionaries and sets", "medium")],
+    },
+}
+HAS_ESE = {"MCA231": True, "MCA232": False}
+MARKS_SEED = {"MCA231": 1231, "MCA232": 1232}
+BASE_SHARE = {"easy": 0.82, "medium": 0.62, "hard": 0.45}
+BLANK_PROB = {"easy": 0.01, "medium": 0.01, "hard": 0.06}
+ABILITY_SD, NOISE_SD = 0.13, 0.12
+DEMO_ABILITY = {config.DEMO_STUDENT_ROLL: 0.12, "25MCA012": -0.28}
+# (subject, component, 1-based question) -> score for the demo student; None = blank.
+DEMO_OVERRIDES = {
+    ("MCA231", "CIA-1", 1): 0.5, ("MCA231", "CIA-1", 3): 0.5, ("MCA231", "CIA-1", 5): 1.5,
+    ("MCA231", "CIA-2", 7): 7,
+    ("MCA232", "CIA-1", 1): 2, ("MCA232", "CIA-1", 2): 3, ("MCA232", "CIA-1", 3): 4.5,
+    ("MCA232", "CIA-1", 4): 2, ("MCA232", "CIA-1", 5): 3,
+    ("MCA232", "CIA-2", 5): None, ("MCA232", "CIA-2", 6): 4,
+}
+ESE_OVERRIDES = {("MCA231", config.DEMO_STUDENT_ROLL): 58, ("MCA231", "25MCA012"): 34}
+
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+@seed_step
+def seed_papers_and_marks(conn, ctx: dict) -> None:
+    for code, papers in PAPERS.items():
+        sid = ctx["subject_ids"][code]
+        topic_ids = {t["title"]: t["id"] for t in db.list_topics(sid, conn=conn)}
+        rng = random.Random(MARKS_SEED[code])
+        rolls = list(ctx["student_ids"])
+        ability = {}
+        for roll in rolls:  # always draw so the stream stays stable
+            a = rng.gauss(0, ABILITY_SD)
+            ability[roll] = DEMO_ABILITY.get(roll, a)
+        for comp, spec in papers.items():
+            db.save_paper(sid, comp, [
+                {"q_no": i, "max_marks": mx, "topic_id": topic_ids[topic]}
+                for i, (mx, topic, _d) in enumerate(spec, start=1)], conn=conn)
+            qid = {q["q_no"]: q["id"] for q in
+                   conn.execute("SELECT id, q_no FROM questions WHERE subject_id = ? "
+                                "AND component = ?", (sid, comp))}
+            records = []
+            for roll in rolls:
+                for i, (mx, _topic, diff) in enumerate(spec, start=1):
+                    share = _clamp(BASE_SHARE[diff] + ability[roll] + rng.gauss(0, NOISE_SD), 0, 1)
+                    blank = rng.random() < BLANK_PROB[diff]
+                    value = None if blank else round(share * mx * 2) / 2
+                    if roll == config.DEMO_STUDENT_ROLL and (code, comp, i) in DEMO_OVERRIDES:
+                        value = DEMO_OVERRIDES[(code, comp, i)]
+                    records.append((qid[i], roll, None if value is None else float(value)))
+            db.save_marks(sid, comp, records, conn=conn)
+        if HAS_ESE[code]:
+            ese = []
+            for roll in rolls:
+                score = _clamp(round(rng.gauss(55 + ability[roll] * 80, 12)), 10, 98)
+                score = ESE_OVERRIDES.get((code, roll), score)
+                ese.append((roll, float(score)))
+            db.save_ese_marks(sid, ese, conn=conn)
+
+
 def seed_all() -> dict:
     """Run every seed step in one transaction on an initialised, empty DB."""
     ctx: dict = {}

@@ -118,3 +118,26 @@ def test_faculty_sees_only_own_subjects(app):
     _faculty_app(app)
     text = " ".join(m.value for m in app.markdown)
     assert "Data Structures" in text and "Hidden" not in text
+
+
+def test_papers_page_components_and_double_save(app):
+    _faculty_app(app)
+    app.switch_page("views/faculty_papers.py")
+    app.run()
+    assert not app.exception
+    ds = db.list_subjects()[0]["id"]
+    before = (db.list_questions(ds, "CIA-1"), len(db.list_marks(ds, "CIA-1")))
+    for _ in range(2):  # saving twice must not duplicate anything
+        app.button(key="save_paper").click().run()
+        assert not app.exception and not app.error
+        app.button(key="save_marks").click().run()
+        assert not app.exception and not app.error
+    assert (db.list_questions(ds, "CIA-1"), len(db.list_marks(ds, "CIA-1"))) == before
+    for comp in ("CIA-2", "CIA-3", "ESE"):
+        app.selectbox[1].select(comp).run()
+        assert not app.exception, comp
+    app.button(key="save_ese").click().run()
+    assert not app.exception and len(db.list_ese_marks(ds)) == 40
+    app.selectbox[0].select_index(1).run()  # Python: no CIA-3 paper yet
+    app.selectbox[1].select("CIA-3").run()
+    assert not app.exception and any("Save the question paper first" in i.value for i in app.info)

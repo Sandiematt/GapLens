@@ -52,6 +52,27 @@ _SCHEMA: list[str] = [
         unit_no INTEGER NOT NULL DEFAULT 1,
         title TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        component TEXT NOT NULL,
+        q_no INTEGER NOT NULL,
+        max_marks REAL NOT NULL,
+        topic_id INTEGER REFERENCES topics(id) ON DELETE SET NULL,
+        UNIQUE (subject_id, component, q_no)
+    )""",
+    """CREATE TABLE IF NOT EXISTS marks (
+        question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+        roll_no TEXT NOT NULL,
+        score REAL,
+        PRIMARY KEY (question_id, roll_no)
+    )""",
+    """CREATE TABLE IF NOT EXISTS ese_marks (
+        subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        roll_no TEXT NOT NULL,
+        score REAL NOT NULL,
+        PRIMARY KEY (subject_id, roll_no)
+    )""",
     """CREATE TABLE IF NOT EXISTS enrollments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -234,8 +255,8 @@ def list_subjects(class_name: str | None = None, faculty_id: int | None = None) 
         return _rows(c.execute(sql + " ORDER BY s.code", args))
 
 
-def list_topics(subject_id: int) -> list[dict]:
-    with _session() as c:
+def list_topics(subject_id: int, conn=None) -> list[dict]:
+    with _session(conn) as c:
         return _rows(c.execute(
             "SELECT * FROM topics WHERE subject_id = ? ORDER BY unit_no, id", (subject_id,)))
 
@@ -339,3 +360,74 @@ def list_subject_enrollments(subject_id: int) -> list[dict]:
         return _rows(c.execute(
             "SELECT e.target, st.* FROM enrollments e JOIN students st ON st.id = e.student_id "
             "WHERE e.subject_id = ? ORDER BY st.roll_no", (subject_id,)))
+
+
+# --- papers and marks -------------------------------------------------------
+def list_questions(subject_id: int, component: str) -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT * FROM questions WHERE subject_id = ? AND component = ? ORDER BY q_no",
+            (subject_id, component)))
+
+
+def save_paper(subject_id: int, component: str, rows: list[dict], conn=None) -> None:
+    """Make the paper match ``rows`` (dicts with q_no, max_marks, topic_id).
+
+    Questions are matched by q_no: existing ones are updated in place (so
+    their marks stay), new ones are added, and removed ones are deleted with
+    their marks (``ON DELETE CASCADE`` on ``marks.question_id``).
+    """
+    with _session(conn) as c:
+        existing = {r["q_no"]: r["id"] for r in c.execute(
+            "SELECT id, q_no FROM questions WHERE subject_id = ? AND component = ?",
+            (subject_id, component))}
+        keep = set()
+        for r in rows:
+            q_no, mx, topic = int(r["q_no"]), float(r["max_marks"]), r.get("topic_id")
+            topic = None if topic is None else int(topic)
+            if q_no in keep:
+                raise DuplicateError(f"Question number {q_no} is used twice.")
+            keep.add(q_no)
+            if q_no in existing:
+                c.execute("UPDATE questions SET max_marks = ?, topic_id = ? WHERE id = ?",
+                          (mx, topic, existing[q_no]))
+            else:
+                c.execute("INSERT INTO questions (subject_id, component, q_no, max_marks, topic_id) "
+                          "VALUES (?, ?, ?, ?, ?)", (subject_id, component, q_no, mx, topic))
+        for q_no, qid in existing.items():
+            if q_no not in keep:
+                c.execute("DELETE FROM questions WHERE id = ?", (qid,))
+
+
+def list_marks(subject_id: int, component: str) -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT m.question_id, m.roll_no, m.score FROM marks m "
+            "JOIN questions q ON q.id = m.question_id "
+            "WHERE q.subject_id = ? AND q.component = ? ORDER BY q.q_no, m.roll_no",
+            (subject_id, component)))
+
+
+def save_marks(subject_id: int, component: str,
+               records: list[tuple[int, str, float | None]], conn=None) -> None:
+    """Replace every mark of a paper. ``records`` are (question_id, roll_no, score|None)."""
+    with _session(conn) as c:
+        c.execute("DELETE FROM marks WHERE question_id IN "
+                  "(SELECT id FROM questions WHERE subject_id = ? AND component = ?)",
+                  (subject_id, component))
+        c.executemany("INSERT INTO marks (question_id, roll_no, score) VALUES (?, ?, ?)", records)
+
+
+def list_ese_marks(subject_id: int) -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT roll_no, score FROM ese_marks WHERE subject_id = ? ORDER BY roll_no",
+            (subject_id,)))
+
+
+def save_ese_marks(subject_id: int, records: list[tuple[str, float]], conn=None) -> None:
+    """Replace the subject's ESE totals. ``records`` are (roll_no, score)."""
+    with _session(conn) as c:
+        c.execute("DELETE FROM ese_marks WHERE subject_id = ?", (subject_id,))
+        c.executemany("INSERT INTO ese_marks (subject_id, roll_no, score) VALUES (?, ?, ?)",
+                      [(subject_id, r, s) for r, s in records])

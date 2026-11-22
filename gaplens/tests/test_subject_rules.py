@@ -72,13 +72,12 @@ def test_update_topics_ignores_ids_of_other_subjects(subj):
 
 
 def test_removing_a_topic_untags_questions_instead_of_failing(subj):
-    """Simulates SAN-122's questions table (topic_id ON DELETE SET NULL)."""
+    """Questions (topic_id ON DELETE SET NULL) are untagged, not deleted."""
     _, sid = subj
     a, b = db.list_topics(sid)
     with db.transaction() as c:
-        c.execute("CREATE TABLE questions (id INTEGER PRIMARY KEY, "
-                  "topic_id INTEGER REFERENCES topics(id) ON DELETE SET NULL)")
-        c.execute("INSERT INTO questions (topic_id) VALUES (?)", (a["id"],))
+        c.execute("INSERT INTO questions (subject_id, component, q_no, max_marks, topic_id) "
+                  "VALUES (?, 'CIA-1', 1, 5, ?)", (sid, a["id"]))
     db.update_topics(sid, [{"id": b["id"], "unit_no": 2, "title": "B"}])
     with db.transaction() as c:
         assert c.execute("SELECT topic_id FROM questions").fetchone()[0] is None
