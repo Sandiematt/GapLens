@@ -125,3 +125,39 @@ def topic_progress_figure(rows, components: list[str]) -> go.Figure:
     fig.update_yaxes(range=[0, 105], ticksuffix="%", title=None)
     fig.update_layout(height=340, legend=dict(orientation="v", x=1.02, y=1))
     return style_figure(fig)
+
+
+# --- Faculty class insights (SAN-126) ---------------------------------------------
+def class_heatmap_figure(matrix) -> go.Figure:
+    """Students (rows) x questions (columns), coloured by % of the question's marks."""
+    fig = go.Figure(go.Heatmap(
+        z=matrix.to_numpy(), x=list(matrix.columns), y=list(matrix.index),
+        zmin=0, zmax=100, colorscale=HEATMAP_SCALE, xgap=2, ygap=2,
+        colorbar=dict(title="%", ticksuffix="%", thickness=12),
+        hovertemplate="%{y} · %{x}: %{z:.0f}%<extra></extra>"))
+    fig.update_yaxes(autorange="reversed", type="category", title=None)
+    fig.update_xaxes(side="top", type="category", title=None)
+    fig.update_layout(height=max(320, 140 + 22 * len(matrix)), margin=dict(l=24, r=16, t=48, b=16))
+    return style_figure(fig)
+
+
+def revise_topics_figure(topics, pcts) -> go.Figure:
+    """Horizontal bars of class % per topic, worst first at the top."""
+    fig = go.Figure(go.Bar(
+        x=list(pcts), y=list(topics), orientation="h",
+        marker=dict(color=list(pcts), colorscale=HEATMAP_SCALE, cmin=0, cmax=100),
+        text=[f"{p:.0f}%" for p in pcts], textposition="outside", cliponaxis=False,
+        hovertemplate="%{y}: %{x:.1f}%<extra></extra>"))
+    fig.update_yaxes(autorange="reversed", title=None)
+    fig.update_xaxes(range=[0, 110], ticksuffix="%", title=None)
+    fig.update_layout(height=max(220, 60 + 38 * len(topics)), bargap=0.35, showlegend=False)
+    return style_figure(fig)
+
+
+def silly_flags_figure(labels, counts) -> go.Figure:
+    fig = go.Figure(go.Bar(x=list(labels), y=list(counts), marker_color=SILLY_BARS,
+                           hovertemplate="%{x}: %{y} students<extra></extra>"))
+    fig.update_xaxes(type="category", title=None)
+    fig.update_yaxes(rangemode="tozero", dtick=1, title=None)
+    fig.update_layout(height=260, bargap=0.4, showlegend=False)
+    return style_figure(fig)

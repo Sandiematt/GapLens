@@ -282,3 +282,24 @@ def test_new_student_sees_empty_cia_and_progress(tmp_db):
     assert not at.exception
     text = _text(at)
     assert "No CIA marks yet" in text and "No progress to show yet" in text
+
+
+def _insights_page():
+    at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["active_role"] = "Faculty"
+    at.run()
+    at.switch_page("views/faculty_insights.py")
+    at.run()
+    return at
+
+
+@pytest.mark.parametrize("subject_index", [0, 1])
+def test_class_insights_every_subject_and_paper(app, subject_index):
+    at = _insights_page()
+    assert not at.exception
+    at.selectbox[0].select_index(subject_index).run()
+    assert not at.exception
+    for option in list(at.selectbox[1].options):
+        at.selectbox[1].select(option).run()
+        assert not at.exception, option
+    assert "All CIAs" in at.selectbox[1].options

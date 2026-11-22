@@ -249,3 +249,53 @@ def topic_losses(tables: list[pd.DataFrame]) -> pd.DataFrame:
     g["lost_pct"] = g["lost"] / g["max"] * 100
     g = g.sort_values(["lost", "lost_pct", "topic"], ascending=[False, False, True], kind="stable")
     return g[cols].reset_index(drop=True)
+
+
+# --- class-level views (SAN-126) ---------------------------------------------------
+def class_question_matrix(questions_df: pd.DataFrame, marks_df: pd.DataFrame) -> pd.DataFrame:
+    """Roll numbers x "Q<n>" columns holding % of each question's max (blanks are 0)."""
+    qs = questions_df.sort_values("q_no")
+    cols = [f"Q{int(n)}" for n in qs["q_no"]]
+    if marks_df.empty or qs.empty:
+        return pd.DataFrame(columns=cols, dtype=float)
+    wide = (marks_df.pivot_table(index="roll_no", columns="question_id", values="score",
+                                 aggfunc="first", dropna=False)
+            .reindex(columns=list(qs["question_id"])).fillna(0.0))
+    pct = wide.div(qs["max_marks"].to_numpy(), axis=1) * 100
+    pct.columns = cols
+    pct.index.name = None
+    return pct.sort_index()
+
+
+def class_topic_pct(papers: list[tuple[pd.DataFrame, pd.DataFrame]]) -> pd.DataFrame:
+    """Class % per topic across the papers given: topic, pct, worst first.
+
+    pct = sum of all scores / sum of all max (blanks are 0); untagged questions are ignored.
+    """
+    parts = []
+    for questions, marks in papers:
+        if questions.empty or marks.empty:
+            continue
+        n_rolls = marks["roll_no"].nunique()
+        tagged = questions[questions["topic_id"].notna()]
+        scored = marks.merge(tagged[["question_id", "topic_id", "topic"]], on="question_id")
+        got = scored.groupby("topic_id")["score"].sum()
+        mx = tagged.groupby("topic_id")["max_marks"].sum() * n_rolls
+        names = tagged.groupby("topic_id")["topic"].first()
+        parts.append(pd.DataFrame({"topic": names, "score": got, "mx": mx}).fillna({"score": 0.0}))
+    if not parts:
+        return pd.DataFrame(columns=["topic", "pct"])
+    g = pd.concat(parts).groupby(level=0).agg(topic=("topic", "first"), score=("score", "sum"),
+                                              mx=("mx", "sum"))
+    g["pct"] = g["score"] / g["mx"] * 100
+    return (g[["topic", "pct"]].sort_values(["pct", "topic"], kind="stable").reset_index(drop=True))
+
+
+def early_warning_reasons(cia_pct: float | None, goal: GoalResult) -> list[str]:
+    """Why a student is flagged; an empty list means not flagged."""
+    reasons = []
+    if cia_pct is not None and cia_pct < config.EARLY_WARNING_CIA_PCT:
+        reasons.append(f"CIA average below {config.EARLY_WARNING_CIA_PCT}%")
+    if goal.status in ("At risk", "Out of reach"):
+        reasons.append(f"{goal.status} target")
+    return reasons

@@ -67,3 +67,32 @@ def weak_topic_rows(subject_id: int, analyses: dict[str, analysis.PaperAnalysis]
         rows.append({**rec, "resources": suggestions.order_resources(
             by_topic.get(int(rec["topic_id"]), []), rec["lost_pct"])})
     return rows
+
+
+def class_overview(subject_id: int) -> list[dict]:
+    """One row per enrolled student: roll, name, target, cia_pct, status, required_pct, reasons.
+
+    Each paper and the ESE totals are read once for the whole class.
+    """
+    subject = next(s for s in db.list_subjects() if s["id"] == subject_id)
+    totals: dict[str, dict[str, float]] = {}
+    for comp in config.CIA_COMPONENTS:
+        per_roll: dict[str, float] = {}
+        for m in db.list_marks(subject_id, comp):
+            per_roll[m["roll_no"]] = per_roll.get(m["roll_no"], 0.0) + (m["score"] or 0)
+        totals[comp] = per_roll
+    totals["ESE"] = {r["roll_no"]: float(r["score"]) for r in db.list_ese_marks(subject_id)
+                     if r["score"] is not None}
+    rows = []
+    for e in db.list_subject_enrollments(subject_id):
+        roll = e["roll_no"]
+        scores = {c: totals[c].get(roll) for c in totals}
+        cia = analysis.cia_percentage(scores)
+        target = e["target"]
+        goal = analysis.goal_status(target if target is not None else 0, scores, subject["cia_weight"])
+        status = goal.status if target is not None else "No data"
+        rows.append({"roll": roll, "name": e["name"], "target": target, "cia_pct": cia,
+                     "status": status, "required_pct": goal.required_pct if target is not None else None,
+                     "reasons": analysis.early_warning_reasons(
+                         cia, goal if target is not None else analysis.GoalResult("No data", 0, 0, 0, None, None, None))})
+    return rows
