@@ -2,8 +2,22 @@
 from __future__ import annotations
 
 import os
+import tomllib
+from pathlib import Path
 
 import streamlit as st
+
+# Streamlit only reads .streamlit/secrets.toml from the working directory, so a run
+# from the repo root (`streamlit run gaplens/app.py`) would miss gaplens/.streamlit.
+_APP_SECRETS = Path(__file__).resolve().parents[1] / ".streamlit" / "secrets.toml"
+
+
+def _app_secrets() -> dict:
+    try:
+        with _APP_SECRETS.open("rb") as fh:
+            return tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
 
 
 def _lookup(name: str) -> str | None:
@@ -11,7 +25,7 @@ def _lookup(name: str) -> str | None:
         value = st.secrets.get(name)  # raises if no secrets.toml exists
     except Exception:
         value = None
-    value = value or os.environ.get(name)
+    value = value or _app_secrets().get(name) or os.environ.get(name)
     return str(value).strip() or None if value else None
 
 

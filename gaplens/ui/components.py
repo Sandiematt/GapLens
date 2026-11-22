@@ -207,10 +207,16 @@ def resource_card(res: dict, verified: bool = True) -> str:
         icon = SEARCH_ICON.get(res.get("kind"), "&#128269;")
         meta = pill("Auto-suggested", "muted")
         cls = "gl-res gl-auto"
+    # Only inline tags inside <a>: a <div> there makes Markdown split the card apart.
     return _h(f'<a class="{cls}" href="{href}" target="_blank" rel="noopener noreferrer">'
-              f'<span style="font-size:18px">{icon}</span><div class="gl-res-body">'
-              f'<div class="gl-res-title">{escape(res["title"])}</div>'
-              f'<div class="gl-res-meta">{meta}</div></div><span class="gl-res-go">&#8599;</span></a>')
+              f'<span class="gl-res-icon">{icon}</span><span class="gl-res-body">'
+              f'<span class="gl-res-title">{escape(res["title"])}</span>'
+              f'<span class="gl-res-meta">{meta}</span></span><span class="gl-res-go">&#8599;</span></a>')
+
+
+def resource_list(cards: list[str]) -> str:
+    """Wrap resource cards in a block element so Markdown keeps them as raw HTML."""
+    return _h(f'<div class="gl-res-list">{"".join(cards)}</div>')
 
 
 def weak_topic_header(rank: int, title: str, lost: float, mx: float, pct: float) -> str:

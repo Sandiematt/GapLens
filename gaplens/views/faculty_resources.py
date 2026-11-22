@@ -77,6 +77,6 @@ with right, components.card("res_list"):
         for r in group:
             a, b = st.columns([8, 1], vertical_alignment="center")
             with a:
-                components.render(components.resource_card(r))
+                components.render(components.resource_list([components.resource_card(r)]))
             b.button("", key=f"del_res_{r['id']}", icon=":material/delete:", on_click=_delete,
                      args=(r["id"], r["title"]), help="Delete this resource")

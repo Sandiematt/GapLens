@@ -13,13 +13,15 @@ def _resource_columns(subject_name: str, row: dict) -> None:
     with left:
         components.render('<div class="gl-eyebrow2">From your faculty</div>')
         if row["resources"]:
-            components.render("".join(components.resource_card(r) for r in row["resources"]))
+            components.render(components.resource_list(
+                [components.resource_card(r) for r in row["resources"]]))
         else:
             st.caption("No verified resources for this topic yet. Try the searches.")
     with right:
         components.render('<div class="gl-eyebrow2">More to explore</div>')
-        components.render("".join(components.resource_card(link, verified=False)
-                                  for link in suggestions.search_links(subject_name, row["topic"])))
+        components.render(components.resource_list(
+            [components.resource_card(link, verified=False)
+             for link in suggestions.search_links(subject_name, row["topic"])]))
 
 
 def render_weak_topics(subject: dict, losses: list[dict], top_n: int = config.TOP_WEAK_TOPICS,

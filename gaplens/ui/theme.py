@@ -232,11 +232,14 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-res {{ display:flex; align-items:center; gap:12px; border:1px solid var(--border); border-radius:14px;
   padding:12px 14px; margin-bottom:10px; background:#fff; text-decoration:none !important; }}
 .gl-res.gl-auto {{ background:var(--muted); border-color:transparent; }}
-.gl-res-title {{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:6px; }}
+.gl-res-list {{ display:flex; flex-direction:column; }}
+.gl-res-icon {{ font-size:18px; width:28px; text-align:center; flex-shrink:0; }}
+.gl-res-title {{ display:block; font-size:14px; font-weight:600; color:var(--text); margin-bottom:6px;
+  overflow-wrap:anywhere; }}
 .gl-res-meta {{ display:flex; gap:6px; flex-wrap:wrap; }}
 .gl-res-meta .gl-pill {{ font-size:12px; padding:2px 10px; }}
-.gl-res-go {{ margin-left:auto; color:var(--gold-800); font-size:16px; }}
-.gl-res-body {{ flex:1; min-width:0; }}
+.gl-res-go {{ margin-left:auto; color:var(--gold-800); font-size:16px; flex-shrink:0; }}
+.gl-res-body {{ display:block; flex:1; min-width:0; }}
 .gl-rule-note {{ background:#FBF4E8; border:1px solid var(--border); border-radius:14px; padding:12px 14px;
   font-size:13px; color:var(--gold-800); margin:8px 0 14px; }}
 .gl-section-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
