@@ -63,6 +63,27 @@ def _profile_picker(role: str) -> None:
         f'<div class="gl-profile-sub">{escape(sub)}</div></div></div>')
 
 
+def _on_subject_change() -> None:
+    chosen = st.session_state.get("subject_widget")
+    if chosen is not None:
+        profile.select_subject(chosen)
+
+
+def _subject_picker() -> None:
+    """Sidebar 'Subject' select over the student's enrolled subjects."""
+    subjects = profile.enrolled_subjects(profile.current_student())
+    components.render('<div class="gl-label" style="margin-top:20px">Subject</div>')
+    if not subjects:
+        st.caption("Enroll in a subject from My Subjects.")
+        return
+    current = profile.current_subject(profile.current_student())
+    by_id = {s["id"]: s for s in subjects}
+    st.session_state["subject_widget"] = current["id"]  # sync before the widget renders
+    st.selectbox("Subject", list(by_id), key="subject_widget",
+                 format_func=lambda i: f'{by_id[i]["code"]} {by_id[i]["name"]}',
+                 label_visibility="collapsed", on_change=_on_subject_change)
+
+
 def _create_profile_form(role: str) -> None:
     with st.expander("Create new profile"):
         with st.form(f"create_profile_{role}", clear_on_submit=False):
@@ -114,6 +135,8 @@ def render_sidebar(pages: list, role: str) -> None:
         components.render(f'<div class="gl-label" style="margin-top:20px">{escape(role)}</div>')
         for page in pages:
             st.page_link(page)
+        if role == "Student":
+            _subject_picker()
         with st.container(key="sidebar_footer"):
             components.render('<div class="gl-label">View as</div>')
             st.session_state["role_widget"] = role  # sync before the widget renders

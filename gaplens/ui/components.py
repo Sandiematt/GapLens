@@ -38,9 +38,29 @@ def kpi_card(label: str, value: str, sub: str = "") -> str:
               f'<div class="gl-kpi-value">{escape(value)}</div>{sub_html}</div>')
 
 
-def hero_banner(title: str, text: str = "") -> str:
+def hero_banner(title: str, text: str = "", eyebrow: str = "", aside_html: str = "") -> str:
+    """``aside_html`` is trusted HTML shown on the right (e.g. target cards)."""
     p = f"<p>{escape(text)}</p>" if text else ""
-    return _h(f'<div class="gl-hero"><h2>{escape(title)}</h2>{p}</div>')
+    e = f'<div class="gl-hero-eyebrow">{escape(eyebrow)}</div>' if eyebrow else ""
+    aside = f'<div class="gl-targets">{aside_html}</div>' if aside_html else ""
+    return _h(f'<div class="gl-hero"><div class="gl-hero-row"><div>{e}<h2>{escape(title)}</h2>{p}</div>'
+              f'{aside}</div></div>')
+
+
+# Goal status -> pill kind (see theme.PILLS).
+STATUS_KIND = {"On track": "on-track", "Stretch": "stretch", "At risk": "at-risk",
+               "Out of reach": "out-of-reach", "Achieved": "ok", "Missed": "at-risk",
+               "No data": "not-attempted"}
+
+
+def status_pill(status: str, label: str | None = None) -> str:
+    return pill(label or status, STATUS_KIND.get(status, "gold"))
+
+
+def status_kpi_card(label: str, status: str, sub: str = "", pill_text: str | None = None) -> str:
+    sub_html = f'<div class="gl-kpi-sub">{escape(sub)}</div>' if sub else ""
+    return _h(f'<div class="gl-kpi"><div class="gl-kpi-label">{escape(label)}</div>'
+              f'<div style="margin:8px 0 6px">{status_pill(status, pill_text)}</div>{sub_html}</div>')
 
 
 def section_card(title: str, body_html: str = "") -> str:

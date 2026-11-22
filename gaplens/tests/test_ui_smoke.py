@@ -35,6 +35,7 @@ def test_every_page_renders(app, role):
     for script in PAGES[role]:
         at = AppTest.from_file(APP, default_timeout=30)
         at.session_state["active_role"] = role
+        at.run()  # switch_page is ignored before the first run
         at.switch_page(script)
         at.run()
         assert not at.exception, script
@@ -141,3 +142,66 @@ def test_papers_page_components_and_double_save(app):
     app.selectbox[0].select_index(1).run()  # Python: no CIA-3 paper yet
     app.selectbox[1].select("CIA-3").run()
     assert not app.exception and any("Save the question paper first" in i.value for i in app.info)
+
+
+# --- subject dashboard (SAN-123) ---------------------------------------------
+def _dashboard(student_id=None, subject_id=None):
+    at = AppTest.from_file(APP, default_timeout=30)
+    if student_id:
+        at.session_state["student_id"] = student_id
+    if subject_id:
+        at.session_state["selected_subject_id"] = subject_id
+    at.run()  # switch_page is ignored before the first run
+    at.switch_page("views/student_dashboard.py")
+    at.run()
+    return at
+
+
+def _text(at):
+    return " ".join(m.value for m in at.markdown)
+
+
+def test_dashboard_demo_student_python_shows_required_pct(tmp_db):
+    seed.ensure_seeded()
+    py = [s for s in db.list_subjects() if s["code"] == "MCA232"][0]
+    at = _dashboard(subject_id=py["id"])
+    assert not at.exception
+    text = _text(at)
+    assert "You need an average of" in text and "CIA-3 and ESE" in text
+    assert "Welcome back, Demo Student" in text
+    assert len(at.tabs) == 5
+
+
+def test_dashboard_demo_student_data_structures_shows_final(tmp_db):
+    seed.ensure_seeded()
+    ds = [s for s in db.list_subjects() if s["code"] == "MCA231"][0]
+    at = _dashboard(subject_id=ds["id"])
+    assert not at.exception
+    text = _text(at)
+    assert "Final mark" in text and ("Achieved" in text or "Missed" in text)
+
+
+def test_dashboard_new_student_no_marks(tmp_db):
+    seed.ensure_seeded()
+    sid = db.add_student("25MCA099", "Newbie", "MCA-A")
+    subject = db.list_subjects()[1]
+    db.enroll(sid, subject["id"], 70)
+    at = _dashboard(student_id=sid)
+    assert not at.exception
+    assert "Set \u2014 no data yet" in _text(at)
+
+
+def test_dashboard_without_target_points_to_my_subjects(tmp_db):
+    seed.ensure_seeded()
+    sid = db.add_student("25MCA098", "Notarget", "MCA-A")
+    db.enroll(sid, db.list_subjects()[0]["id"])
+    at = _dashboard(student_id=sid)
+    assert not at.exception
+    assert "No target set" in _text(at)
+
+
+def test_dashboard_not_enrolled(tmp_db):
+    seed.ensure_seeded()
+    sid = db.add_student("25MCA097", "Fresh", "MCA-A")
+    at = _dashboard(student_id=sid)
+    assert not at.exception and any("My Subjects" in i.value for i in at.info)

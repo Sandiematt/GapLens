@@ -121,6 +121,19 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-soon h3 {{ margin:0 0 6px; font-size:18px; }}
 .gl-soon p {{ margin:0; color:var(--text2); font-size:14px; }}
 
+/* goal tab */
+.gl-hero-row {{ display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap; }}
+.gl-hero-eyebrow {{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }}
+.gl-targets {{ display:flex; gap:12px; flex-wrap:wrap; }}
+.gl-target-card {{ background:#fff; color:{GOLD[950]}; border-radius:14px; padding:10px 16px; min-width:110px; }}
+.gl-target-card small {{ display:block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text2); }}
+.gl-target-card b {{ font-size:26px; font-variant-numeric:tabular-nums; }}
+.gl-target-card span {{ font-size:12px; color:var(--text2); }}
+.gl-rule {{ display:flex; gap:10px; align-items:center; margin:6px 0; font-size:12px; color:var(--text2); }}
+.gl-formula {{ background:{GRAD_CHAMPAGNE}; border:1px solid var(--border); border-radius:14px; padding:12px 14px;
+  font-size:14px; font-weight:600; color:var(--text); margin-bottom:10px; }}
+.gl-eyebrow {{ font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text2); margin:12px 0 4px; }}
+
 /* subject card */
 .gl-banner {{ display:flex; justify-content:space-between; align-items:center; padding:22px; }}
 .gl-banner-code {{ font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }}

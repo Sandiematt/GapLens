@@ -43,6 +43,33 @@ def current_student() -> dict | None:
     return student
 
 
+SUBJECT_KEY = "selected_subject_id"
+
+
+def enrolled_subjects(student: dict | None) -> list[dict]:
+    """Subjects the student is enrolled in (subject dicts plus ``target``)."""
+    if not student:
+        return []
+    targets = {e["subject_id"]: e["target"] for e in db.list_enrollments(student["id"])}
+    return [dict(s, target=targets[s["id"]])
+            for s in db.list_subjects(class_name=student["class_name"]) if s["id"] in targets]
+
+
+def current_subject(student: dict | None) -> dict | None:
+    """The chosen enrolled subject (session state), defaulting to the first."""
+    subjects = enrolled_subjects(student)
+    if not subjects:
+        st.session_state[SUBJECT_KEY] = None
+        return None
+    chosen = next((s for s in subjects if s["id"] == st.session_state.get(SUBJECT_KEY)), subjects[0])
+    st.session_state[SUBJECT_KEY] = chosen["id"]
+    return chosen
+
+
+def select_subject(subject_id: int) -> None:
+    st.session_state[SUBJECT_KEY] = subject_id
+
+
 def current_faculty() -> dict | None:
     faculty = db.get_faculty(st.session_state.get(FACULTY_KEY) or -1)
     if faculty is None:
@@ -78,5 +105,6 @@ def reset_demo_data() -> None:
     seed.reset_demo()
     st.session_state.pop(STUDENT_KEY, None)
     st.session_state.pop(FACULTY_KEY, None)
+    st.session_state.pop(SUBJECT_KEY, None)
     # Widget keys that cache DB values include this counter, so they refresh.
     st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
