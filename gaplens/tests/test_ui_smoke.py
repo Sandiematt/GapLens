@@ -303,3 +303,90 @@ def test_class_insights_every_subject_and_paper(app, subject_index):
         at.selectbox[1].select(option).run()
         assert not at.exception, option
     assert "All CIAs" in at.selectbox[1].options
+
+
+# --- ESE tab and ESE Scripts page (SAN-127) ---------------------------------------
+def _ese_text(at):
+    return _text(at) + " ".join(i.value for i in at.info)
+
+
+def test_ese_tab_pass_with_published_review(tmp_db):
+    seed.ensure_seeded()
+    at = _dashboard(subject_id=_subject("MCA231"))
+    assert not at.exception
+    text = _text(at)
+    assert ">Pass<" in text and "58 / 100" in text and "Presentation feedback" in text
+    assert "Doing well" in text and "Improve" in text
+    assert "Focus for supplementary exam" not in text
+
+
+def test_ese_tab_fail_shows_supplementary_focus(tmp_db):
+    seed.ensure_seeded()
+    at = _dashboard(student_id=db.get_student_by_roll("25MCA012")["id"],
+                    subject_id=_subject("MCA231"))
+    assert not at.exception
+    text = _text(at)
+    assert ">Fail<" in text and "34 / 100" in text
+    assert "Focus for supplementary exam" in text
+    assert "published a review yet" in text
+
+
+def test_ese_tab_without_ese_marks(tmp_db):
+    seed.ensure_seeded()
+    at = _dashboard(subject_id=_subject("MCA232"))
+    assert not at.exception
+    assert any("ESE mark has not been entered" in i.value for i in at.info)
+
+
+def _ese_page():
+    at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["active_role"] = "Faculty"
+    at.run()
+    at.switch_page("views/faculty_ese.py")
+    at.run()
+    return at
+
+
+def _pick_roll(at, roll):
+    next(s for s in at.selectbox if s.label == "Student").select(roll).run()
+
+
+def test_faculty_checklist_to_publish_to_unpublish(tmp_db):
+    seed.ensure_seeded()
+    ds, roll = _subject("MCA231"), "25MCA012"
+    at = _ese_page()
+    assert not at.exception and at.button[[b.label for b in at.button].index("Generate AI review")].disabled
+    _pick_roll(at, roll)
+    assert not at.exception
+    assert at.text_area[0].value == ""  # 25MCA007's published review must not leak here
+    ident = f"0_{ds}_{roll}"
+    at.checkbox(key=f"ese_chk_headings_{ident}").check().run()
+    at.button(key=f"ese_gen_{ident}").click().run()
+    assert not at.exception
+    r = db.get_review(ds, roll)
+    assert not r["published"] and "Doing well" in r["final_review"]
+    assert at.text_area[0].value == r["final_review"]
+    assert [m for m in at.markdown if "Draft" in m.value]
+    # a student cannot see the draft
+    stu = _dashboard(student_id=db.get_student_by_roll(roll)["id"], subject_id=ds)
+    assert "published a review yet" in _text(stu) and "Doing well" not in _text(stu)
+    at.text_area[0].set_value("Edited review. Improve spacing.")
+    at.button(key=f"ese_publish_{ident}").click().run()
+    assert db.get_review(ds, roll)["published"] == 1
+    stu = _dashboard(student_id=db.get_student_by_roll(roll)["id"], subject_id=ds)
+    assert "Edited review" in _text(stu)
+    at.button(key=f"ese_unpublish_{ident}").click().run()
+    assert not at.exception and db.get_review(ds, roll)["published"] == 0
+    stu = _dashboard(student_id=db.get_student_by_roll(roll)["id"], subject_id=ds)
+    assert "Edited review" not in _text(stu) and "published a review yet" in _text(stu)
+
+
+def test_switching_student_never_shows_previous_draft(tmp_db):
+    seed.ensure_seeded()
+    at = _ese_page()
+    _pick_roll(at, "25MCA007")
+    assert "Doing well" in at.text_area[0].value
+    _pick_roll(at, "25MCA012")
+    assert at.text_area[0].value == ""
+    _pick_roll(at, "25MCA007")
+    assert "Doing well" in at.text_area[0].value

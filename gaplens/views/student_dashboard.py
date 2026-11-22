@@ -34,12 +34,6 @@ components.render(components.page_header(
 tab_goal, tab_cia, tab_weak, tab_progress, tab_ese = st.tabs(
     ["Goal", "CIA Analysis", "Weak Topics & Resources", "Progress", "ESE"])
 
-for tab, name, ticket in [(tab_ese, "ESE", "SAN-127")]:
-    with tab:
-        components.render(components.coming_soon(f"{name}: coming in {ticket}",
-                                                 "This tab arrives in a later ticket."))
-
-
 def fmt(x: float) -> str:
     return f"{x:.1f}".rstrip("0").rstrip(".")
 
@@ -332,3 +326,61 @@ with tab_weak:
     render_weak_topics(subject, insights.weak_topic_rows(subject['id'], analyses))
 with tab_progress:
     render_progress(analyses)
+
+
+# --- ESE (SAN-127) ------------------------------------------------------------------
+def render_ese(analyses: dict[str, analysis.PaperAnalysis]) -> None:
+    scores = insights.student_component_scores(subject["id"], student["roll_no"])
+    ese = scores["ESE"]
+    if ese is None:
+        st.info("Your ESE mark has not been entered yet. Your result and feedback appear here "
+                "once your faculty uploads the ESE marks.")
+        return
+    passed = ese >= config.ESE_PASS_MARK
+    target = subject["target"]
+    g = analysis.goal_status(target or 0, scores, subject["cia_weight"])
+    left, right = st.columns(2, gap="medium")
+    gap = abs(ese - config.ESE_PASS_MARK)
+    with left:
+        components.render(components.hero_banner(
+            f"{fmt(ese)} / {config.COMPONENTS['ESE']}",
+            (f"{fmt(gap)} above the pass line of {config.ESE_PASS_MARK}." if passed
+             else f"{fmt(gap)} below the pass line of {config.ESE_PASS_MARK}. "
+                  "Plan for the supplementary exam."),
+            "ESE score",
+            components.pill("Pass" if passed else "Fail", "ok" if passed else "at-risk")))
+    with right, components.card("ese_final"):
+        st.caption("FINAL MARK VS TARGET")
+        if g.final is None:
+            st.markdown("**Final mark pending**")
+            st.caption("It is calculated once every paper has marks.")
+        else:
+            st.markdown(f"### {fmt(g.final)} / 100" + (f" · target {fmt(target)}" if target is not None else ""))
+            if target is not None:
+                components.render(components.status_pill(g.status))
+            if not passed:
+                components.render(components.callout(
+                    f"ESE below {config.ESE_PASS_MARK} is a fail, whatever your CIA total."))
+    st.write("")
+
+    review = db.get_review(subject["id"], student["roll_no"])
+    if review and review["published"] and (review["final_review"] or "").strip():
+        good, improve = suggestions.split_review(review["final_review"])
+        components.render(components.section_head("Presentation feedback", "From your faculty"))
+        shown = [c for c in (("Doing well", good), ("Improve", improve)) if c[1]]
+        for col, (title, body) in zip(st.columns(len(shown), gap="medium"), shown):
+            with col, components.card("ese_" + title.lower().replace(" ", "_")):
+                st.markdown(f"### {title}")
+                st.markdown(body)
+    else:
+        components.render(components.callout("Your faculty hasn't published a review yet."))
+
+    if not passed:
+        st.write("")
+        components.render(components.section_head(
+            "Focus for supplementary exam", "The topics that cost you the most marks across your CIAs"))
+        render_weak_topics(subject, insights.weak_topic_rows(subject["id"], analyses), key="ese_focus")
+
+
+with tab_ese:
+    render_ese(analyses)

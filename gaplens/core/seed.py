@@ -254,3 +254,18 @@ def seed_resources(conn, ctx: dict) -> None:
         topic_ids = {t["title"]: t["id"] for t in db.list_topics(sid, conn=conn)}
         for topic, title, link, rtype, diff, dur in items:
             db.add_resource(sid, topic_ids[topic], title, link, rtype, diff, dur, conn=conn)
+
+
+# --- ESE presentation review (SAN-127) -------------------------------------------
+DEMO_CHECKLIST = {"legible": False, "headings": True, "diagrams": False, "order": True,
+                  "time": True, "length": False, "examples": True, "margins": True}
+
+
+@seed_step
+def seed_ese_review(conn, ctx: dict) -> None:
+    import json
+    from core import suggestions
+    db.upsert_review(ctx["subject_ids"]["MCA231"], config.DEMO_STUDENT_ROLL,
+                     checklist=json.dumps(DEMO_CHECKLIST),
+                     final_review=suggestions.checklist_review(DEMO_CHECKLIST),
+                     published=1, conn=conn)

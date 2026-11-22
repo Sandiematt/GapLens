@@ -12,6 +12,7 @@ re-runs them, so new tables are picked up automatically.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -508,3 +509,62 @@ def list_resources(subject_id: int, topic_id: int | None = None) -> list[dict]:
 def delete_resource(resource_id: int) -> None:
     with _session() as c:
         c.execute("DELETE FROM resources WHERE id = ?", (resource_id,))
+
+
+# --- ESE script reviews (SAN-127) -----------------------------------------------
+register_table("""CREATE TABLE IF NOT EXISTS ese_reviews (
+    subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    roll_no TEXT NOT NULL,
+    script_name TEXT,
+    script_mime TEXT,
+    script BLOB,
+    checklist TEXT,
+    ai_review TEXT,
+    final_review TEXT,
+    published INTEGER NOT NULL DEFAULT 0 CHECK (published IN (0, 1)),
+    updated_at TEXT,
+    PRIMARY KEY (subject_id, roll_no)
+)""")
+
+REVIEW_FIELDS = ("script_name", "script_mime", "script", "checklist", "ai_review",
+                 "final_review", "published")
+
+
+def get_review(subject_id: int, roll_no: str, with_script: bool = False) -> dict | None:
+    """The review row, or None. The script bytes are left out unless ``with_script``."""
+    cols = "*" if with_script else ", ".join(
+        c for c in ("subject_id", "roll_no", "script_name", "script_mime", "checklist",
+                    "ai_review", "final_review", "published", "updated_at"))
+    with _session() as c:
+        r = c.execute(f"SELECT {cols} FROM ese_reviews WHERE subject_id = ? AND roll_no = ?",
+                      (subject_id, roll_no)).fetchone()
+        return dict(r) if r else None
+
+
+def upsert_review(subject_id: int, roll_no: str, conn=None, **fields) -> None:
+    """Create or update only the given fields (whitelisted columns)."""
+    bad = set(fields) - set(REVIEW_FIELDS)
+    if bad:
+        raise ValueError(f"Unknown review field(s): {', '.join(sorted(bad))}")
+    if "published" in fields:
+        fields["published"] = 1 if fields["published"] else 0
+    fields["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    cols = list(fields)
+    with _session(conn) as c:
+        c.execute(
+            f"INSERT INTO ese_reviews (subject_id, roll_no, {', '.join(cols)}) "
+            f"VALUES (?, ?, {', '.join('?' * len(cols))}) "
+            f"ON CONFLICT (subject_id, roll_no) DO UPDATE SET "
+            + ", ".join(f"{k} = excluded.{k}" for k in cols),
+            (subject_id, roll_no, *fields.values()))
+
+
+def list_review_status(subject_id: int) -> list[dict]:
+    """[{roll_no, has_script, has_review, published}] ordered by roll."""
+    with _session() as c:
+        return [{"roll_no": r["roll_no"], "has_script": bool(r["has_script"]),
+                 "has_review": bool(r["has_review"]), "published": bool(r["published"])}
+                for r in c.execute(
+                    "SELECT roll_no, script IS NOT NULL AS has_script, "
+                    "COALESCE(TRIM(final_review), '') <> '' AS has_review, published "
+                    "FROM ese_reviews WHERE subject_id = ? ORDER BY roll_no", (subject_id,))]

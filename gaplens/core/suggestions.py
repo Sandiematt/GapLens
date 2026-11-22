@@ -134,3 +134,51 @@ def validate_resource(title, link, topic_id, rtype="video", difficulty="beginner
     if difficulty not in DIFFICULTIES:
         errors.append("Pick a valid difficulty.")
     return errors
+
+
+# --- ESE presentation checklist (SAN-127) ----------------------------------------
+# (key, label, tip). The tip is shown when the answer is "no".
+PRESENTATION_CHECKLIST: list[tuple[str, str, str]] = [
+    ("legible", "Handwriting is legible",
+     "Slow down on the key words and numbers. Write every answer as if a tired examiner "
+     "must read it once; if they cannot read it, they cannot give the marks."),
+    ("headings", "Headings and underlining",
+     "Underline the heading or key term of each answer with a ruler, and underline final "
+     "results, so the examiner finds your marks-earning points at a glance."),
+    ("diagrams", "Diagrams are labelled",
+     "Label every diagram (nodes, axes, arrows, pointers) and give it a one-line caption. "
+     "An unlabelled figure often earns half marks or less."),
+    ("order", "Answered in order and numbered",
+     "Answer in paper order and write the question number in the margin. If you skip one, "
+     "leave space and mark it so nothing is missed."),
+    ("time", "Finished in time",
+     "Budget about one minute per mark and note the clock at each section. Answer the "
+     "short, sure questions first and leave 10 minutes at the end."),
+    ("length", "Answer length matches the marks",
+     "Aim for one distinct point per mark: 2 marks is 2 lines, 5 marks is about 5 points "
+     "or half a page. Do not write a page for 2 marks."),
+    ("examples", "Examples, code and derivations used",
+     "Back each theory answer with a small example, code snippet or worked derivation. "
+     "Show every step; method marks are given even when the final value is wrong."),
+    ("margins", "Clean margins and spacing",
+     "Leave a margin and a blank line between answers, and cross out with a single line. "
+     "A tidy page reads as a confident, well-organised answer."),
+]
+
+
+def checklist_review(answers: dict[str, bool]) -> str:
+    """Markdown review: 'Doing well' for each yes, 'Improve' with one tip per no."""
+    good = [f"- {label}" for k, label, _t in PRESENTATION_CHECKLIST if answers.get(k)]
+    fix = [f"- **{label}.** {tip}" for k, label, tip in PRESENTATION_CHECKLIST
+           if not answers.get(k)]
+    return ("**Doing well**\n" + ("\n".join(good) or "- Nothing ticked yet.")
+            + "\n\n**Improve**\n" + ("\n".join(fix) or "- Nothing to fix. Keep it up."))
+
+
+def split_review(markdown: str) -> tuple[str, str]:
+    """(doing_well, improve) bodies of a review. Free text without the headings is all 'improve'."""
+    text = (markdown or "").strip()
+    if "**Doing well**" not in text and "**Improve**" not in text:
+        return "", text
+    head, _, improve = text.partition("**Improve**")
+    return head.replace("**Doing well**", "").strip(), improve.strip()
