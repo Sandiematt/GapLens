@@ -1,0 +1,294 @@
+"""SQLite storage layer. Plain functions, no Streamlit import.
+
+Every call opens a fresh connection (foreign keys ON) unless an open
+``conn`` is passed in, which lets callers such as the seed batch many
+writes into one transaction.
+
+Adding tables in a later ticket: append a ``CREATE TABLE IF NOT EXISTS``
+statement with ``register_table(...)`` below (or add it to ``_SCHEMA``).
+``init_db`` runs every statement; ``reset_db`` drops every table and
+re-runs them, so new tables are picked up automatically.
+"""
+from __future__ import annotations
+
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+
+import config
+
+# Tests monkeypatch this attribute to point at a temporary file.
+DB_PATH: Path = config.DB_PATH
+
+
+class DuplicateError(ValueError):
+    """Raised when a unique value (e.g. a roll number) already exists."""
+
+
+# --- schema -----------------------------------------------------------------
+_SCHEMA: list[str] = [
+    """CREATE TABLE IF NOT EXISTS faculty (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+    )""",
+    """CREATE TABLE IF NOT EXISTS students (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roll_no TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        class_name TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS subjects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        faculty_id INTEGER NOT NULL REFERENCES faculty(id) ON DELETE CASCADE,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        class_name TEXT NOT NULL,
+        cia_weight REAL NOT NULL DEFAULT 0.5,
+        UNIQUE (code, class_name)
+    )""",
+    """CREATE TABLE IF NOT EXISTS topics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        unit_no INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS enrollments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        target REAL,
+        UNIQUE (student_id, subject_id)
+    )""",
+]
+
+
+def register_table(create_sql: str) -> None:
+    """Add a CREATE TABLE statement to the schema (idempotent)."""
+    if create_sql not in _SCHEMA:
+        _SCHEMA.append(create_sql)
+
+
+# --- connections ------------------------------------------------------------
+def connect() -> sqlite3.Connection:
+    path = Path(DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+@contextmanager
+def _session(conn: sqlite3.Connection | None = None):
+    """Yield ``conn`` untouched, or a fresh connection committed on exit."""
+    if conn is not None:
+        yield conn
+        return
+    own = connect()
+    try:
+        yield own
+        own.commit()
+    except Exception:
+        own.rollback()
+        raise
+    finally:
+        own.close()
+
+
+@contextmanager
+def transaction():
+    """One connection for a batch of writes; commits at the end."""
+    with _session() as conn:
+        yield conn
+
+
+def _rows(cur) -> list[dict]:
+    return [dict(r) for r in cur.fetchall()]
+
+
+# --- schema lifecycle -------------------------------------------------------
+def init_db() -> None:
+    with _session() as conn:
+        for stmt in _SCHEMA:
+            conn.execute(stmt)
+
+
+def reset_db() -> None:
+    """Drop every table, then recreate the empty schema."""
+    conn = connect()
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        names = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%'")]
+        for name in names:
+            conn.execute(f'DROP TABLE IF EXISTS "{name}"')
+        conn.commit()
+    finally:
+        conn.close()
+    init_db()
+
+
+# --- faculty ----------------------------------------------------------------
+def add_faculty(name: str, conn=None) -> int:
+    name = name.strip()
+    if not name:
+        raise ValueError("Name is required.")
+    with _session(conn) as c:
+        try:
+            return c.execute("INSERT INTO faculty (name) VALUES (?)", (name,)).lastrowid
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateError(f"A faculty profile named {name} already exists.") from exc
+
+
+def list_faculty() -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute("SELECT * FROM faculty ORDER BY id"))
+
+
+def get_faculty(faculty_id: int) -> dict | None:
+    with _session() as c:
+        r = c.execute("SELECT * FROM faculty WHERE id = ?", (faculty_id,)).fetchone()
+        return dict(r) if r else None
+
+
+# --- students ---------------------------------------------------------------
+def add_student(roll_no: str, name: str, class_name: str, conn=None) -> int:
+    roll_no, name, class_name = roll_no.strip().upper(), name.strip(), class_name.strip()
+    if not (roll_no and name and class_name):
+        raise ValueError("Roll number, name and class are all required.")
+    with _session(conn) as c:
+        try:
+            return c.execute(
+                "INSERT INTO students (roll_no, name, class_name) VALUES (?, ?, ?)",
+                (roll_no, name, class_name)).lastrowid
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateError(f"Roll number {roll_no} already exists.") from exc
+
+
+def list_students(class_name: str | None = None) -> list[dict]:
+    with _session() as c:
+        if class_name:
+            cur = c.execute("SELECT * FROM students WHERE class_name = ? ORDER BY roll_no",
+                            (class_name,))
+        else:
+            cur = c.execute("SELECT * FROM students ORDER BY roll_no")
+        return _rows(cur)
+
+
+def get_student(student_id: int) -> dict | None:
+    with _session() as c:
+        r = c.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
+        return dict(r) if r else None
+
+
+def get_student_by_roll(roll_no: str) -> dict | None:
+    with _session() as c:
+        r = c.execute("SELECT * FROM students WHERE roll_no = ?",
+                      (roll_no.strip().upper(),)).fetchone()
+        return dict(r) if r else None
+
+
+# --- subjects and topics ----------------------------------------------------
+def add_subject(faculty_id: int, code: str, name: str, class_name: str,
+                cia_weight: float = config.DEFAULT_CIA_WEIGHT, conn=None) -> int:
+    code, name, class_name = code.strip().upper(), name.strip(), class_name.strip()
+    if not (code and name and class_name):
+        raise ValueError("Code, name and class are all required.")
+    if not 0 <= cia_weight <= 1:
+        raise ValueError("CIA weight must be between 0 and 1.")
+    with _session(conn) as c:
+        try:
+            return c.execute(
+                "INSERT INTO subjects (faculty_id, code, name, class_name, cia_weight) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (faculty_id, code, name, class_name, cia_weight)).lastrowid
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateError(f"{code} already exists for {class_name}.") from exc
+
+
+def add_topic(subject_id: int, unit_no: int, title: str, conn=None) -> int:
+    title = title.strip()
+    if not title:
+        raise ValueError("Topic title is required.")
+    with _session(conn) as c:
+        return c.execute(
+            "INSERT INTO topics (subject_id, unit_no, title) VALUES (?, ?, ?)",
+            (subject_id, unit_no, title)).lastrowid
+
+
+def list_subjects(class_name: str | None = None, faculty_id: int | None = None) -> list[dict]:
+    """Subjects with their faculty name, optionally filtered, ordered by code."""
+    sql = ("SELECT s.*, f.name AS faculty_name FROM subjects s "
+           "JOIN faculty f ON f.id = s.faculty_id")
+    clauses, args = [], []
+    if class_name is not None:
+        clauses.append("s.class_name = ?")
+        args.append(class_name)
+    if faculty_id is not None:
+        clauses.append("s.faculty_id = ?")
+        args.append(faculty_id)
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    with _session() as c:
+        return _rows(c.execute(sql + " ORDER BY s.code", args))
+
+
+def list_topics(subject_id: int) -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT * FROM topics WHERE subject_id = ? ORDER BY unit_no, id", (subject_id,)))
+
+
+# --- enrollments ------------------------------------------------------------
+def _check_target(target: float | None) -> float | None:
+    if target is None:
+        return None
+    if not config.TARGET_MIN <= target <= config.TARGET_MAX:
+        raise ValueError(
+            f"Target must be between {config.TARGET_MIN} and {config.TARGET_MAX}.")
+    return float(target)
+
+
+def enroll(student_id: int, subject_id: int, target: float | None = None, conn=None) -> None:
+    """Enroll (idempotent). A given target is saved; None keeps any existing one."""
+    target = _check_target(target)
+    with _session(conn) as c:
+        c.execute("INSERT OR IGNORE INTO enrollments (student_id, subject_id, target) "
+                  "VALUES (?, ?, ?)", (student_id, subject_id, target))
+        if target is not None:
+            c.execute("UPDATE enrollments SET target = ? WHERE student_id = ? AND subject_id = ?",
+                      (target, student_id, subject_id))
+
+
+def set_target(student_id: int, subject_id: int, target: float) -> None:
+    target = _check_target(target)
+    if target is None:
+        raise ValueError("Target is required.")
+    with _session() as c:
+        cur = c.execute("UPDATE enrollments SET target = ? "
+                        "WHERE student_id = ? AND subject_id = ?",
+                        (target, student_id, subject_id))
+        if cur.rowcount == 0:
+            raise ValueError("Enroll in the subject before setting a target.")
+
+
+def get_enrollment(student_id: int, subject_id: int) -> dict | None:
+    with _session() as c:
+        r = c.execute("SELECT * FROM enrollments WHERE student_id = ? AND subject_id = ?",
+                      (student_id, subject_id)).fetchone()
+        return dict(r) if r else None
+
+
+def list_enrollments(student_id: int) -> list[dict]:
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT * FROM enrollments WHERE student_id = ? ORDER BY subject_id", (student_id,)))
+
+
+def list_subject_enrollments(subject_id: int) -> list[dict]:
+    """Enrolled students of a subject with their targets."""
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT e.target, st.* FROM enrollments e JOIN students st ON st.id = e.student_id "
+            "WHERE e.subject_id = ? ORDER BY st.roll_no", (subject_id,)))

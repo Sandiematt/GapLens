@@ -1,0 +1,84 @@
+"""HTML helpers. Every user-supplied string is escaped here.
+
+Each helper returns an HTML string; ``render`` writes one to the page.
+Use ``st.container(border=True)`` (styled as a card) for widget groups.
+"""
+from __future__ import annotations
+
+from html import escape
+
+import streamlit as st
+
+from ui import theme
+
+
+def _h(html: str) -> str:
+    """Collapse to one line so Markdown never treats indentation as code."""
+    return "".join(line.strip() for line in html.strip().splitlines())
+
+
+def render(html: str) -> None:
+    st.markdown(_h(html), unsafe_allow_html=True)
+
+
+def pill(text: str, kind: str = "gold") -> str:
+    bg, fg = theme.PILLS.get(kind, theme.PILLS["gold"])
+    return f'<span class="gl-pill" style="background:{bg};color:{fg}">{escape(text)}</span>'
+
+
+def chip(text: str, index: int = 0) -> str:
+    """Topic chip; the gold shade cycles with ``index``."""
+    soft, _main, fg = theme.SHADES[theme.SHADE_ORDER[index % len(theme.SHADE_ORDER)]]
+    return f'<span class="gl-chip" style="background:{soft};color:{fg}">{escape(text)}</span>'
+
+
+def kpi_card(label: str, value: str, sub: str = "") -> str:
+    sub_html = f'<div class="gl-kpi-sub">{escape(sub)}</div>' if sub else ""
+    return _h(f'<div class="gl-kpi"><div class="gl-kpi-label">{escape(label)}</div>'
+              f'<div class="gl-kpi-value">{escape(value)}</div>{sub_html}</div>')
+
+
+def hero_banner(title: str, text: str = "") -> str:
+    p = f"<p>{escape(text)}</p>" if text else ""
+    return _h(f'<div class="gl-hero"><h2>{escape(title)}</h2>{p}</div>')
+
+
+def section_card(title: str, body_html: str = "") -> str:
+    """``body_html`` is trusted HTML: escape any user text before passing it."""
+    return _h(f'<div class="gl-section"><h3>{escape(title)}</h3>{body_html}</div>')
+
+
+def callout(text: str) -> str:
+    return _h(f'<div class="gl-callout"><span>&#9432;</span><span>{escape(text)}</span></div>')
+
+
+def page_header(title: str, subtitle: str = "", chips_html: str = "") -> str:
+    sub = f'<p class="gl-subtitle">{escape(subtitle)}</p>' if subtitle else ""
+    chips = f'<div class="gl-chips">{chips_html}</div>' if chips_html else ""
+    return _h(f'<div class="gl-header"><div><h1 class="gl-title">{escape(title)}</h1>{sub}</div>{chips}</div>')
+
+
+def coming_soon(title: str, text: str, icon: str = "&#9733;") -> str:
+    return _h(f'<div class="gl-soon"><div class="gl-soon-icon">{icon}</div>'
+              f'<h3>{escape(title)}</h3><p>{escape(text)}</p></div>')
+
+
+def initials(name: str) -> str:
+    parts = [p for p in name.replace(".", " ").split() if p]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+def placeholder_page(title: str, subtitle: str) -> None:
+    """Standard 'coming in a later ticket' page for navigation stubs."""
+    render(page_header(title, subtitle))
+    render(coming_soon(f"{title} is coming soon",
+                       "This page arrives in a later ticket. Navigation is already in place."))
+
+
+def card(key: str):
+    """A white, rounded, shadowed container. ``key`` must be unique per page."""
+    return st.container(border=True, key=f"card_{key}")
