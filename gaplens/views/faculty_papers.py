@@ -88,13 +88,14 @@ if is_ese:
                 st.rerun()
     with right, components.card("ese_stats"):
         scores = list(saved.values())
-        components.render(components.card_title("ESE totals"))
+        components.render(components.card_title(
+            "ESE totals", f"Out of {total_max}. Below {config.ESE_PASS_MARK} is a fail."))
         if scores:
             fails = sum(not analysis.passed_ese(s) for s in scores)
-            components.render(
+            components.render(components.pill_row(
                 components.pill(f"{len(scores)} entered", "gold")
                 + components.pill(f"{fails} below {config.ESE_PASS_MARK}", "at-risk" if fails else "ok")
-                + components.pill(f"average {sum(scores) / len(scores):.1f}", "stretch"))
+                + components.pill(f"average {sum(scores) / len(scores):.1f}", "stretch")))
         else:
             st.caption("No ESE totals entered yet.")
     with components.card("ese_grid"):
@@ -110,7 +111,8 @@ if is_ese:
             column_config={
                 "roll_no": st.column_config.TextColumn("Roll"),
                 "name": st.column_config.TextColumn("Name", disabled=True),
-                "score": st.column_config.NumberColumn(f"ESE /{total_max}", format="%g", step=0.5)})
+                "score": st.column_config.NumberColumn(f"ESE /{total_max}", format="%g", step=0.5,
+                                                       alignment="right")})
         if st.button("Save ESE totals", key="save_ese", type="primary", icon=":material/save:"):
             rows = [{"roll_no": _val(r["roll_no"]), "score": _val(r["score"])}
                     for _, r in edited.iterrows()]
@@ -144,9 +146,10 @@ with left, components.card("paper_editor"):
     paper_edit = st.data_editor(
         base, key=f"paper_{ident}", num_rows="dynamic", hide_index=True,
         column_config={
-            "q_no": st.column_config.NumberColumn("Q no", min_value=1, step=1, format="%d"),
+            "q_no": st.column_config.NumberColumn("Q no", min_value=1, step=1, format="%d",
+                                                  alignment="right"),
             "max_marks": st.column_config.NumberColumn("Max marks", min_value=0.5, step=0.5,
-                                                       format="%g"),
+                                                       format="%g", alignment="right"),
             "topic": st.column_config.SelectboxColumn("Topic", options=list(topic_id),
                                                       width="medium")})
     paper_rows = [{"q_no": _val(r["q_no"]), "max_marks": _val(r["max_marks"]),
@@ -211,7 +214,8 @@ if questions:
             "name": st.column_config.TextColumn("Name", disabled=True)}
         for q in questions:
             config_cols[mr.qcol(q["q_no"])] = st.column_config.NumberColumn(
-                f'{mr.qcol(q["q_no"])} /{q["max_marks"]:g}', format="%g", step=0.5)
+                f'{mr.qcol(q["q_no"])} /{q["max_marks"]:g}', format="%g", step=0.5,
+                alignment="right")
         edited = st.data_editor(base, key=f"grid_{ident}", hide_index=True, num_rows="dynamic",
                                 column_config=config_cols)
         st.caption(f"{len(base)} rows · scores must be between 0 and each question's maximum.")

@@ -338,7 +338,6 @@ def render_ese(analyses: dict[str, analysis.PaperAnalysis]) -> None:
                     components.render(components.status_pill(goal.status))
                 if not passed:
                     st.caption(f"ESE below {config.ESE_PASS_MARK} is a fail, whatever your CIA total.")
-    st.write("")
 
     review = db.get_review(subject["id"], student["roll_no"])
     if review and review["published"] and (review["final_review"] or "").strip():

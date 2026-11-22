@@ -110,11 +110,12 @@ def empty_state(title: str, text: str, icon: str = "&#128218;") -> str:
 
 
 def table(headers: list[str], rows: list[list[str]], numeric: tuple[int, ...] = (),
-          classes: dict[int, str] | None = None) -> str:
+          classes: dict[int, str] | None = None, scroll: bool = False) -> str:
     """Read-only table. Cells are trusted HTML: escape user text before passing it.
 
     ``numeric`` column indexes are right-aligned (header and cells); ``classes``
-    adds a css class to every cell of a column.
+    adds a css class to every cell of a column. ``scroll`` caps the height and
+    keeps the header row in view.
     """
     classes = classes or {}
 
@@ -125,8 +126,20 @@ def table(headers: list[str], rows: list[list[str]], numeric: tuple[int, ...] = 
     head = "".join(f"<th{cls(i)}>{escape(h)}</th>" for i, h in enumerate(headers))
     body = "".join("<tr>" + "".join(f"<td{cls(i)}>{c}</td>" for i, c in enumerate(r)) + "</tr>"
                    for r in rows)
-    return _h(f'<div class="gl-table-wrap"><table class="gl-table"><thead><tr>{head}</tr></thead>'
+    wrap = "gl-table-wrap gl-table-scroll" if scroll else "gl-table-wrap"
+    return _h(f'<div class="{wrap}"><table class="gl-table"><thead><tr>{head}</tr></thead>'
               f'<tbody>{body}</tbody></table></div>')
+
+
+def readonly_field(label: str, value: str) -> str:
+    """A labelled read-only value that lines up with the inputs beside it."""
+    return _h(f'<div class="gl-field"><div class="gl-field-label">{escape(label)}</div>'
+              f'<div class="gl-field-value">{escape(value)}</div></div>')
+
+
+def pill_row(pills_html: str) -> str:
+    """Pills (trusted HTML) on one wrapping row with even gaps."""
+    return f'<div class="gl-pill-row">{pills_html}</div>'
 
 
 def callout(text: str) -> str:

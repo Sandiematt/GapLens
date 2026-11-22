@@ -22,10 +22,17 @@ if not subjects:
     st.stop()
 
 labels = {s["id"]: f'{s["code"]} {s["name"]}' for s in subjects}
-sid = st.selectbox("Subject", list(labels), format_func=labels.get, key=f"res_subject_{data_version}")
-topics = db.list_topics(sid)
-titles = {t["id"]: t["title"] for t in topics}
-resources = db.list_resources(sid)
+with components.card("res_select"):
+    c1, c2 = st.columns(2, gap="medium")
+    sid = c1.selectbox("Subject", list(labels), format_func=labels.get,
+                       key=f"res_subject_{data_version}")
+    topics = db.list_topics(sid)
+    titles = {t["id"]: t["title"] for t in topics}
+    resources = db.list_resources(sid)
+    covered = len({r["topic_id"] for r in resources})
+    with c2:
+        components.render(components.readonly_field(
+            "Coverage", f"{covered} of {len(topics)} topics have a verified link"))
 res_version = st.session_state.get("res_version", 0)
 
 left, right = st.columns([1, 1], gap="medium")

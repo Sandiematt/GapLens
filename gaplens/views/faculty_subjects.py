@@ -1,6 +1,8 @@
 """Faculty: My Subjects (create subjects manually, manage topics, see enrolled students)."""
 from __future__ import annotations
 
+from html import escape
+
 import pandas as pd
 import streamlit as st
 
@@ -208,9 +210,10 @@ with right, components.card("manage_subject"):
             columns=["id", "unit_no", "title"]).astype({"id": "Int64", "unit_no": "Int64"})
         edited = st.data_editor(
             base, key=f"topics_{data_version}_{topics_version}_{sid}", num_rows="dynamic",
-            hide_index=True, column_order=("unit_no", "title"),
+            hide_index=True, column_order=("unit_no", "title"), height=320,
             column_config={
-                "unit_no": st.column_config.NumberColumn("Unit", min_value=1, step=1, format="%d"),
+                "unit_no": st.column_config.NumberColumn("Unit", min_value=1, step=1, format="%d",
+                                                         alignment="right", width="small"),
                 "title": st.column_config.TextColumn("Topic", required=True)})
 
         def save_topics() -> None:
@@ -231,14 +234,18 @@ with right, components.card("manage_subject"):
         for e in st.session_state.pop("_topic_errors", []):
             st.error(e)
 
-        components.render(components.card_title("Enrolled students"))
+# Full width below both columns, so the two cards above stay a similar height.
+if subject is not None:
+    with components.card("enrolled_students"):
         enrolled = db.list_subject_enrollments(sid)
+        components.render(components.card_title(
+            f'Enrolled students · {subject["code"]}',
+            f'{len(enrolled)} student{"s" if len(enrolled) != 1 else ""} with the target each one set.'))
         if enrolled:
-            st.dataframe(pd.DataFrame(
-                {"Roll no": [e["roll_no"] for e in enrolled],
-                 "Name": [e["name"] for e in enrolled],
-                 "Target": [e["target"] for e in enrolled]}),
-                hide_index=True,
-                column_config={"Target": st.column_config.NumberColumn(format="%g")})
+            components.render(components.table(
+                ["Roll no", "Name", "Target"],
+                [[escape(e["roll_no"]), escape(e["name"]),
+                  "&ndash;" if e["target"] is None else components.num(e["target"])]
+                 for e in enrolled], numeric=(2,), scroll=True))
         else:
             st.caption("No students have enrolled yet.")

@@ -113,9 +113,8 @@ with left, components.card("ese_script"):
 with right, components.card("ese_checklist"):
     components.render(components.card_title(
         "Presentation checklist", "Tick what the script does well. Each unticked item becomes a tip."))
-    cols = st.columns(2)
-    for i, (key, label, _tip) in enumerate(suggestions.PRESENTATION_CHECKLIST):
-        cols[i % 2].checkbox(label, value=bool(checklist.get(key)), key=f"ese_chk_{key}_{ident}")
+    for key, label, _tip in suggestions.PRESENTATION_CHECKLIST:  # one column: labels stay whole
+        st.checkbox(label, value=bool(checklist.get(key)), key=f"ese_chk_{key}_{ident}")
     if st.button("Generate tips from checklist", key=f"ese_gen_{ident}", type="primary",
                  icon=":material/checklist:"):
         answers = {k: bool(st.session_state[f"ese_chk_{k}_{ident}"])
@@ -136,20 +135,24 @@ with components.card("ese_review"):
     text = st.text_area("Review text (markdown)", value=review.get("final_review") or "",
                         key=text_key, height=260)
     st.caption("Saving a draft takes the review off the student's page until you publish again.")
-    b1, b2, b3, _ = st.columns([1, 1, 1, 3])
-    if b1.button("Save draft", key=f"ese_savedraft_{ident}", icon=":material/save:"):
+    with st.container(horizontal=True, key="ese_actions"):  # evenly spaced buttons
+        save = st.button("Save draft", key=f"ese_savedraft_{ident}", icon=":material/save:")
+        publish = st.button("Publish", key=f"ese_publish_{ident}", type="primary",
+                            icon=":material/publish:")
+        unpublish = st.button("Unpublish", key=f"ese_unpublish_{ident}", disabled=not published,
+                              icon=":material/visibility_off:")
+    if save:
         db.upsert_review(sid, roll, final_review=text, published=False)
         flash("Draft saved.")
         st.rerun()
-    if b2.button("Publish", key=f"ese_publish_{ident}", type="primary", icon=":material/publish:"):
+    if publish:
         if not text.strip():
             st.error("Write or generate a review before publishing.")
         else:
             db.upsert_review(sid, roll, final_review=text, published=True)
             flash(f"Published the review to {roll}.")
             st.rerun()
-    if b3.button("Unpublish", key=f"ese_unpublish_{ident}", disabled=not published,
-                 icon=":material/visibility_off:"):
+    if unpublish:
         db.upsert_review(sid, roll, published=False)
         flash("Unpublished. The student no longer sees it.")
         st.rerun()
@@ -169,4 +172,4 @@ rows = [[escape(r), escape(names.get(r, "Not enrolled")),
 with components.card("ese_status"):
     components.render(components.card_title(f"Status · {subject['code']}"))
     components.render(components.table(
-        ["Roll", "Name", "Script uploaded", "Review written", "Published"], rows))
+        ["Roll", "Name", "Script uploaded", "Review written", "Published"], rows, scroll=True))

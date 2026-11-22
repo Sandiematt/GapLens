@@ -264,6 +264,7 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
   padding:12px 14px; margin-bottom:10px; background:#fff; text-decoration:none !important; }}
 .gl-res.gl-auto {{ background:var(--muted); border-color:transparent; }}
 .gl-res-list {{ display:flex; flex-direction:column; }}
+.gl-res-list .gl-res:last-child {{ margin-bottom:0; }}
 .gl-res-icon {{ font-size:18px; width:28px; text-align:center; flex-shrink:0; }}
 .gl-res-title {{ display:block; font-size:14px; font-weight:600; color:var(--text); margin-bottom:6px;
   overflow-wrap:anywhere; }}
@@ -280,6 +281,54 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-tab-head {{ margin:8px 0 14px; }}
 .gl-tab-head .gl-section-title {{ font-size:20px; font-weight:700; color:var(--text); letter-spacing:-0.02em; line-height:1.3; }}
 .gl-tab-sub {{ font-size:13px; color:var(--text2); margin:4px 0 0; }}
+
+/* --- layout polish ------------------------------------------------------------ */
+/* Streamlit's header toolbar (Deploy, main menu) overlapped the page-header chips. The
+   header keeps its (empty) left slot, where the expand-sidebar button appears. */
+[data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stMainMenu"],
+[data-testid="stDecoration"] {{ display:none !important; }}
+[data-testid="stHeader"] {{ pointer-events:none; }}
+[data-testid="stHeader"] button, [data-testid="stHeader"] a {{ pointer-events:auto; }}
+/* page title: the 28 px token (Streamlit's h1 rule would make it 44 px) */
+h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-height:1.2; padding:0; }}
+.gl-header {{ align-items:flex-start; }}
+.gl-header .gl-chips {{ padding-top:6px; }}
+/* paired cards: a column whose only child is a card stretches it to the row's height */
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]:only-child:has(> [class*="st-key-card_"]),
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]:only-child:has(> [class*="st-key-tip_"]) {{
+  flex:1 1 auto; display:flex; flex-direction:column; }}
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]:only-child > [class*="st-key-card_"],
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]:only-child > [class*="st-key-tip_"] {{
+  flex:1 1 auto; }}
+/* tip cards: the silly-slip checkbox sits on the card's bottom edge */
+[class*="st-key-tip_"] > [data-testid="stElementContainer"]:has([data-testid="stCheckbox"]) {{ margin-top:auto; }}
+/* charts sit on the white card (Streamlit's chart theme paints them cream) */
+.stPlotlyChart .main-svg {{ background:transparent !important; }}
+.stPlotlyChart .modebar-group {{ background:transparent !important; }}
+/* ESE score card keeps the hero gold */
+.st-key-card_ese_score {{ background:{GRAD_HERO} !important; }}
+.st-key-card_ese_score .gl-kpi-label, .st-key-card_ese_score .gl-figure,
+.st-key-card_ese_score [data-testid="stCaptionContainer"] {{ color:{GOLD[950]}; }}
+/* checkbox labels wrap instead of being cut off */
+[data-testid="stCheckbox"] label {{ align-items:flex-start; }}
+[data-testid="stCheckbox"] label p, [data-testid="stCheckbox"] label div {{ white-space:normal !important;
+  overflow:visible !important; text-overflow:clip !important; }}
+/* buttons in a horizontal action row get normal side padding (column buttons stay tight) */
+.st-key-ese_actions .stButton > button {{ padding:0 16px; }}
+/* read-only field next to selects (same label and box metrics as a Streamlit input) */
+.gl-field-label {{ font-size:14px; color:var(--text); margin-bottom:8px; line-height:1.6; }}
+.gl-field-value {{ height:40px; display:flex; align-items:center; padding:0 12px; border-radius:10px;
+  background:var(--muted); border:1px solid var(--border); color:var(--text2); font-size:14px; }}
+/* long read-only tables scroll inside the card with the header row pinned */
+.gl-table-scroll {{ max-height:420px; overflow-y:auto; }}
+.gl-table-scroll thead th {{ position:sticky; top:0; z-index:1; }}
+/* st.info matches the gold callout instead of Streamlit's blue */
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {{ background:{GRAD_CHAMPAGNE};
+  border:1px solid var(--border); border-radius:14px; }}
+[data-testid="stAlertContentInfo"], [data-testid="stAlertContentInfo"] p {{ color:var(--text); }}
+[data-testid="stAlertContentInfo"] code {{ background:#fff; color:{GOLD[800]}; }}
+/* captions directly under a card title sit close to it */
+.gl-card-head + div, [data-testid="stCaptionContainer"] p {{ line-height:1.5; }}
 """
 
 

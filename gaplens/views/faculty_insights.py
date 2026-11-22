@@ -27,18 +27,19 @@ if not subjects:
 
 data_version = st.session_state.get("data_version", 0)
 labels = {s["id"]: f'{s["code"]} {s["name"]}' for s in subjects}
-c1, c2 = st.columns(2)
 by_label = {v: k for k, v in labels.items()}
-sid = by_label[c1.selectbox("Subject", list(by_label), key=f"ins_subject_{data_version}")]
-
-papers = {comp: insights.paper_frames(sid, comp) for comp in config.CIA_COMPONENTS}
-papers = {c: f for c, f in papers.items() if not f[1].empty}  # only papers with marks
 ALL = "All CIAs"
-options = list(papers) + ([ALL] if papers else [])
+with components.card("ins_select"):
+    c1, c2 = st.columns(2, gap="medium")
+    sid = by_label[c1.selectbox("Subject", list(by_label), key=f"ins_subject_{data_version}")]
+    papers = {comp: insights.paper_frames(sid, comp) for comp in config.CIA_COMPONENTS}
+    papers = {c: f for c, f in papers.items() if not f[1].empty}  # only papers with marks
+    options = list(papers) + ([ALL] if papers else [])
+    choice = (c2.selectbox("Paper", options, key=f"ins_paper_{data_version}_{sid}")
+              if options else None)
 if not options:
     st.info("No CIA marks have been entered for this subject yet. Add them in Papers & Marks.")
     st.stop()
-choice = c2.selectbox("Paper", options, key=f"ins_paper_{data_version}_{sid}")
 single = choice != ALL
 chosen = [papers[choice]] if single else list(papers.values())
 
@@ -46,13 +47,13 @@ if single:
     with components.card("ins_heat"):
         questions, marks = papers[choice]
         matrix = analysis.class_question_matrix(questions, marks)
-        components.render(components.section_head(
+        components.render(components.card_title(
             f"Class heatmap · {choice}", f"{len(matrix)} students · % of each question's marks"))
         st.plotly_chart(plotly_theme.class_heatmap_figure(matrix), key=f"ins_heat_{data_version}_{sid}_{choice}")
 
 with components.card("ins_topics"):
     topics = analysis.class_topic_pct(chosen)
-    components.render(components.section_head(
+    components.render(components.card_title(
         "Revise these in class", f"Class average per topic · {choice}, worst first"))
     if topics.empty:
         st.caption("No tagged questions to summarise.")
@@ -63,7 +64,7 @@ with components.card("ins_topics"):
 overview = insights.class_overview(sid)
 flagged = [r for r in overview if r["reasons"]]
 with components.card("ins_warn"):
-    components.render(components.section_head(
+    components.render(components.card_title(
         "Early warning", f"{len(flagged)} of {len(overview)} students flagged"))
     if not flagged:
         st.caption("Nobody is flagged right now.")
@@ -80,7 +81,7 @@ with components.card("ins_warn"):
 if single:
     with components.card("ins_flags"):
         counts = pd.DataFrame(db.count_silly_flags(sid, choice))
-        components.render(components.section_head(
+        components.render(components.card_title(
             "Silly-error flags", "Students who flagged each question as right method, wrong answer"))
         if counts.empty:
             st.caption("This paper has no questions.")

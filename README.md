@@ -59,7 +59,8 @@ and MCA232 Python Programming (CIA-1 and CIA-2 only, so the goal calculator is s
    **time pressure**; CIA-2 Q5 is **Not attempted** (the blank answer).
 
 **Student 25MCA012 (switch profile in the sidebar)**: the Data Structures ESE is 34, so the ESE
-tab shows Fail and **Focus for supplementary exam**, built from the weakest CIA topics.
+tab shows Fail and **Focus for supplementary exam**, built from the weakest CIA topics, and the goal
+is Missed. The student profile picker lists roll numbers and class only, never names.
 
 **Faculty (switch "View as" to Faculty)**
 
@@ -99,7 +100,7 @@ replaces the subject's ESE totals).
   required = (target - earned) / share still available. **On track** if required is at or below
   the average; **Stretch** if at most 15 points above; **At risk** if more than 15 above;
   **Out of reach** if required is over 100%. **Achieved** or **Missed** once nothing is left to
-  sit; "Set — no data yet" before any marks exist.
+  sit (a failed ESE is always **Missed**); "Set — no data yet" before any marks exist.
 - **Mistake type** (first match wins): Not attempted (blank), Silly error flagged (student flag),
   Silly loss (at least 70% of the class scored 60%+ of the question but the student scored under
   40%), Time pressure (paper shows time pressure, question in the last third, student below the
