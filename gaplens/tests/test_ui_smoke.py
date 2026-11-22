@@ -35,16 +35,48 @@ def test_student_default_profile_and_subjects(app):
     assert app.number_input[0].value == 80 and app.number_input[1].value == 75
 
 
-@pytest.mark.parametrize("role", ["Student", "Faculty"])
-def test_every_page_renders(app, role):
-    for script in PAGES[role]:
-        at = AppTest.from_file(APP, default_timeout=30)
-        at.session_state["active_role"] = role
-        at.run()  # switch_page is ignored before the first run
-        at.switch_page(script)
-        at.run()
-        assert not at.exception, script
-        assert len(at.sidebar.get("page_link")) == len(PAGES[role])
+def test_page_list_covers_every_view_file():
+    on_disk = {f"views/{p.name}" for p in (Path(APP).parent / "views").glob("*.py")} - {"views/__init__.py"}
+    assert on_disk == {s for scripts in PAGES.values() for s in scripts}
+
+
+def _open_page(role, script, **state):
+    at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["active_role"] = role
+    for key, value in state.items():
+        at.session_state[key] = value
+    at.run()  # switch_page is ignored before the first run
+    at.switch_page(script)
+    at.run()
+    return at
+
+
+def _every_page_case():
+    """(role, script, student roll, subject code): every page for both roles with the demo
+    profiles; the student dashboard (all five tabs render on each run) for both subjects
+    and both demo students."""
+    cases = []
+    for role, scripts in PAGES.items():
+        for script in scripts:
+            if script == "views/student_dashboard.py":
+                cases += [(role, script, roll, code) for roll in ("25MCA007", "25MCA012")
+                          for code in ("MCA231", "MCA232")]
+            else:
+                cases.append((role, script, "25MCA007", None))
+    return cases
+
+
+@pytest.mark.parametrize("role,script,roll,code", _every_page_case())
+def test_every_page_renders(app, role, script, roll, code):
+    state = {"student_id": db.get_student_by_roll(roll)["id"]}
+    if code:
+        state["selected_subject_id"] = next(s["id"] for s in db.list_subjects() if s["code"] == code)
+    at = _open_page(role, script, **state)
+    assert not at.exception, (role, script, roll, code)
+    assert len(at.sidebar.get("page_link")) == len(PAGES[role])
+    if script == "views/student_dashboard.py":
+        labels = [t.label for t in at.tabs]
+        assert {"Goal", "CIA Analysis", "Weak Topics & Resources", "Progress", "ESE"} <= set(labels)
 
 
 def test_new_student_enrolls_and_saves_target(app):
