@@ -6,8 +6,9 @@ from html import escape
 
 import streamlit as st
 
-from core import db, suggestions
-from ui import components, profile
+import config
+from core import db, gemini_client, suggestions
+from ui import components, profile, secrets
 from ui.flash import flash, show_flash
 
 PRIVACY = ("Gemini's free tier may use uploaded content to improve Google's products — "
@@ -58,12 +59,17 @@ left, right = st.columns(2, gap="medium")
 # --- script upload ---------------------------------------------------------------
 with left, components.card("ese_script"):
     st.markdown("### Answer script")
-    if review.get("script_name"):
-        st.caption(f'Stored script: {review["script_name"]}')
-        full = db.get_review(sid, roll, with_script=True)
+    full = db.get_review(sid, roll, with_script=True) if review.get("script_name") else None
+    has_script = bool(full and full["script"])
+    if has_script:
+        size_mb = len(full["script"]) / (1024 * 1024)
+        st.caption(f'Stored script: {review["script_name"]} · {size_mb:.1f} MB')
         st.download_button("Download stored script", full["script"], file_name=full["script_name"],
                            mime=full["script_mime"] or "application/octet-stream",
                            key=f"ese_dl_{ident}", icon=":material/download:")
+        if size_mb > config.GEMINI_SCRIPT_WARN_MB:
+            st.warning(f"This script is {size_mb:.0f} MB. Gemini may reject files this large; "
+                       "upload a smaller scan, or use the manual checklist.")
     else:
         st.caption("No script uploaded yet.")
     up = st.file_uploader("Upload script (PDF or photo)", type=["pdf", "png", "jpg", "jpeg"],
@@ -75,11 +81,31 @@ with left, components.card("ese_script"):
         st.session_state["ese_version"] = rv + 1
         flash(f"Saved {up.name} for {roll}.")
         st.rerun()
-    # SAN-128 hook: enable this button (drop ``disabled``) and store the model output with
-    # db.upsert_review(sid, roll, ai_review=...). The checklist and draft below stay as they are.
-    st.button("Generate AI review", key=f"ese_ai_{ident}", disabled=True,
-              icon=":material/auto_awesome:", help="Arrives in SAN-128")
-    st.caption("Arrives in SAN-128")
+    gemini_key = secrets.get_gemini_key()
+    if not gemini_key:
+        ai_note = ("No Gemini API key is configured, so AI review is off. Use the presentation "
+                   "checklist, or add GEMINI_API_KEY to .streamlit/secrets.toml.")
+    elif not has_script:
+        ai_note = "Save a script first, then Gemini can review its presentation."
+    elif (review.get("ai_review") or "").strip():
+        ai_note = "An AI draft is already saved. Generating again replaces the current draft."
+    else:
+        ai_note = "Gemini reviews presentation only. The result opens as a draft; it is never published automatically."
+    if st.button("Generate AI review", key=f"ese_ai_{ident}", icon=":material/auto_awesome:",
+                 disabled=not (gemini_key and has_script)):
+        with st.spinner("Gemini is reviewing the script's presentation…"):
+            try:
+                ai_text = gemini_client.review_ese_script(
+                    full["script"], gemini_client.guess_mime(full["script_name"], full["script_mime"]),
+                    gemini_key, secrets.get_gemini_model())
+            except gemini_client.GeminiError as exc:
+                st.error(f"{exc} Use the manual checklist instead.")
+            else:
+                db.upsert_review(sid, roll, ai_review=ai_text, final_review=ai_text, published=False)
+                st.session_state.pop(text_key, None)
+                flash("AI review drafted. Check and edit it, then publish.")
+                st.rerun()
+    st.caption(ai_note)
 
 # --- checklist -----------------------------------------------------------------------
 with right, components.card("ese_checklist"):

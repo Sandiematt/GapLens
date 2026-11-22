@@ -7,9 +7,11 @@ import pandas as pd
 import streamlit as st
 
 import config
-from core import db, subject_rules
-from ui import components, profile
+from core import db, gemini_client, subject_rules
+from ui import components, profile, secrets
 from ui.flash import flash
+
+PLAN_KEY = "course_plan_parsed"  # the parsed course plan awaiting review
 
 faculty = profile.current_faculty()
 if faculty is None:
@@ -58,12 +60,99 @@ left, right = st.columns([1, 1], gap="medium")
 with left, components.card("create_subject"):
     components.render('<h3 style="margin:0 0 4px">Create subject</h3>')
     tab_plan, tab_manual = st.tabs(["From course plan (Gemini)", "Manually"])
+    default_class = summaries[-1]["class_name"] if summaries else config.DEMO_CLASS
     with tab_plan:
-        st.info("Course-plan upload with Gemini arrives in SAN-128. "
-                "Use the Manually tab for now.")
+        gemini_key = secrets.get_gemini_key()
+        pv = st.session_state.get("plan_version", 0)
+        parsed = st.session_state.get(PLAN_KEY)
+        if not gemini_key:
+            st.info("No Gemini API key is configured, so course-plan parsing is off. "
+                    "Create the subject on the **Manually** tab, or add `GEMINI_API_KEY` to "
+                    "`.streamlit/secrets.toml` (see `secrets.toml.example`) and restart the app.")
+        if parsed is None:
+            plan_file = st.file_uploader(
+                "Course plan (PDF or image)", type=["pdf", "png", "jpg", "jpeg"],
+                key=f"plan_up_{pv}",
+                help="Gemini reads the subject code, name, units and topics. "
+                     "You review everything before the subject is created.")
+            if st.button("Parse with Gemini", key="plan_parse", type="primary",
+                         icon=":material/auto_awesome:",
+                         disabled=not gemini_key or plan_file is None):
+                with st.spinner("Reading the course plan with Gemini…"):
+                    try:
+                        result = gemini_client.parse_course_plan(
+                            plan_file.getvalue(),
+                            gemini_client.guess_mime(plan_file.name, plan_file.type),
+                            gemini_key, secrets.get_gemini_model())
+                    except gemini_client.GeminiError as exc:
+                        st.error(f"{exc} You can still create the subject manually.")
+                    else:
+                        st.session_state[PLAN_KEY] = {"file": plan_file.name, **result}
+                        st.rerun()
+            st.caption("Gemini's free tier may use uploaded files to improve Google's products.")
+        else:
+            n_topics = sum(len(u["topics"]) for u in parsed["units"])
+            f1, f2 = st.columns([5, 1], vertical_alignment="center")
+            with f1:
+                components.render(components.file_summary(
+                    parsed["file"], f'{len(parsed["units"])} units found · {n_topics} topics · '
+                                    "edit below before saving"))
+
+            def _discard_plan() -> None:
+                st.session_state.pop(PLAN_KEY, None)
+                st.session_state["plan_version"] = pv + 1
+
+            f2.button("Replace", key="plan_replace", on_click=_discard_plan, type="tertiary")
+            plan_rows = pd.DataFrame(
+                [{"unit_no": u["unit_no"], "unit_title": u["title"], "topic": t}
+                 for u in parsed["units"] for t in u["topics"]],
+                columns=["unit_no", "unit_title", "topic"]).astype({"unit_no": "Int64"})
+            with st.form(f"plan_form_{dv}_{pv}", border=False):
+                c1, c2, c3 = st.columns([1, 2, 1])
+                p_code = c1.text_input("Code", value=parsed["subject_code"], key=f"plan_code_{pv}")
+                p_name = c2.text_input("Name", value=parsed["subject_name"], key=f"plan_name_{pv}")
+                p_class = c3.text_input("Class", value=default_class, key=f"plan_class_{pv}")
+                p_cia = st.number_input("CIA weight (%)", min_value=0, max_value=100,
+                                        value=int(config.DEFAULT_CIA_WEIGHT * 100), step=5,
+                                        key=f"plan_cia_{pv}")
+                plan_edit = st.data_editor(
+                    plan_rows, key=f"plan_rows_{dv}_{pv}", num_rows="dynamic", hide_index=True,
+                    column_config={
+                        "unit_no": st.column_config.NumberColumn("Unit", min_value=1, step=1,
+                                                                 format="%d", width="small"),
+                        "unit_title": st.column_config.TextColumn("Unit title"),
+                        "topic": st.column_config.TextColumn("Topic", required=True)})
+                plan_submit = st.form_submit_button("Create subject", type="primary",
+                                                    icon=":material/add_task:")
+            st.caption(f"ESE weight is the rest · pass mark {config.ESE_PASS_MARK} in ESE.")
+            if plan_submit:
+                rows = [{"unit_no": None if pd.isna(r["unit_no"]) else int(r["unit_no"]),
+                         "title": "" if pd.isna(r["topic"]) else str(r["topic"]).strip()}
+                        for _, r in plan_edit.iterrows()
+                        if not all(pd.isna(r[c]) or str(r[c]).strip() == "" for c in plan_edit.columns)]
+                errors = subject_rules.validate_topic_rows(rows)
+                plan_topics = [(r["unit_no"], r["title"]) for r in rows]
+                errors += [e for e in subject_rules.validate_subject(
+                    p_code, p_name, p_class, p_cia, plan_topics) if e not in errors]
+                new_id = None
+                if not errors:
+                    try:
+                        new_id = db.create_subject_with_topics(
+                            faculty["id"], p_code, p_name, p_class, p_cia / 100, plan_topics)
+                    except ValueError as exc:  # includes db.DuplicateError
+                        errors.append(str(exc))
+                if errors:
+                    for e in errors:
+                        st.error(e)
+                else:
+                    st.session_state[SEL_KEY] = new_id
+                    st.session_state.pop(PLAN_KEY, None)
+                    st.session_state["plan_version"] = pv + 1
+                    flash(f"Created {p_code.strip().upper()} with {len(plan_topics)} topics "
+                          f"from the course plan. Students in {p_class.strip()} can now enroll.")
+                    st.rerun()
     with tab_manual:
         cv = st.session_state.get("create_version", 0)
-        default_class = summaries[-1]["class_name"] if summaries else "MCA-A"
         with st.form(f"create_subject_form_{dv}_{cv}", border=False):
             c1, c2, c3 = st.columns([1, 2, 1])
             code = c1.text_input("Code", placeholder="MCA234")

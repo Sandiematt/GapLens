@@ -116,6 +116,12 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-section p, .gl-section li {{ font-size:14px; color:var(--text2); }}
 .gl-callout {{ display:flex; gap:12px; align-items:flex-start; background:{GRAD_CHAMPAGNE};
   border:1px solid var(--border); border-radius:14px; padding:16px; font-size:14px; color:var(--text); margin-top:8px; }}
+.gl-file {{ display:flex; gap:12px; align-items:center; background:{GRAD_CHAMPAGNE}; border:2px dashed #B7791F;
+  border-radius:14px; padding:12px 14px; margin-bottom:8px; }}
+.gl-file-icon {{ width:36px; height:36px; border-radius:10px; background:#fff; display:flex; align-items:center;
+  justify-content:center; color:{GOLD[800]}; font-size:18px; flex:none; }}
+.gl-file b {{ display:block; font-size:14px; color:var(--text); word-break:break-all; }}
+.gl-file span {{ font-size:12px; color:var(--text2); }}
 .gl-soon {{ background:var(--card); border-radius:20px; box-shadow:var(--shadow); padding:36px 28px; text-align:center; }}
 .gl-soon-icon {{ width:56px; height:56px; border-radius:16px; margin:0 auto 14px; display:flex;
   align-items:center; justify-content:center; background:{GRAD_HERO}; color:{GOLD[950]}; font-size:26px; }}

@@ -72,6 +72,12 @@ def callout(text: str) -> str:
     return _h(f'<div class="gl-callout"><span>&#9432;</span><span>{escape(text)}</span></div>')
 
 
+def file_summary(name: str, detail: str) -> str:
+    """An uploaded file's name and a one-line summary, on a dashed champagne strip."""
+    return _h(f'<div class="gl-file"><div class="gl-file-icon">&#128196;</div>'
+              f'<div><b>{escape(name)}</b><span>{escape(detail)}</span></div></div>')
+
+
 def page_header(title: str, subtitle: str = "", chips_html: str = "") -> str:
     sub = f'<p class="gl-subtitle">{escape(subtitle)}</p>' if subtitle else ""
     chips = f'<div class="gl-chips">{chips_html}</div>' if chips_html else ""

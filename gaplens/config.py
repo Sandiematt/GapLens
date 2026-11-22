@@ -40,3 +40,10 @@ TARGET_MIN, TARGET_MAX = 0, 100
 ROLES = ("Student", "Faculty")
 APP_NAME = "GapLens"
 APP_TAGLINE = "CHRIST Smart Marks Coach"
+
+# --- Gemini (optional, free-tier key) ------------------------------------------
+GEMINI_DEFAULT_MODEL = "gemini-flash-latest"  # tried first when no model is configured
+GEMINI_MAX_CANDIDATES = 3  # models tried at most, moving on only on "not found"
+GEMINI_TIMEOUT_S = 60
+GEMINI_TEMPERATURE = 0.2
+GEMINI_SCRIPT_WARN_MB = 15  # inline uploads near Gemini's ~20 MB request limit may fail

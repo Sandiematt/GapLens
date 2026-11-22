@@ -1,10 +1,15 @@
 """UI smoke tests (Streamlit AppTest) for both roles, against a temp DB."""
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from google.genai import errors as genai_errors
 from streamlit.testing.v1 import AppTest
 
-from core import db, seed
+import config
+from core import db, gemini_client, seed
+from ui import secrets
 
 APP = str(Path(__file__).resolve().parents[1] / "app.py")
 
@@ -390,3 +395,119 @@ def test_switching_student_never_shows_previous_draft(tmp_db):
     assert at.text_area[0].value == ""
     _pick_roll(at, "25MCA007")
     assert "Doing well" in at.text_area[0].value
+
+
+# --- Gemini course plan and AI review (SAN-128); never touches the network -----------
+CANNED_PLAN = {"subject_code": "mca233", "subject_name": "Design and Analysis of Algorithms",
+               "units": [{"unit_no": 1, "title": "Basics", "topics": ["Asymptotic notation", "Recurrences"]},
+                         {"unit_no": 2, "title": "Divide and conquer", "topics": ["Merge sort", " "]}]}
+CANNED_REVIEW = {"strengths": ["Clear headings"],
+                 "improvements": [{"area": "Margins", "observation": "Cramped.", "tip": "Leave space."}],
+                 "summary": "Tidy overall."}
+
+
+def _fake_gemini(monkeypatch, reply):
+    """A key plus a stub SDK client; returns the list of generate_content calls."""
+    calls = []
+
+    def generate_content(*, model, contents, config):
+        calls.append(model)
+        if isinstance(reply, BaseException):
+            raise reply
+        return SimpleNamespace(text=json.dumps(reply))
+
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content, list=lambda: []))
+    monkeypatch.setattr(secrets, "get_gemini_key", lambda: "test-key")
+    monkeypatch.setattr(gemini_client, "client_factory", lambda key: client)
+    return calls
+
+
+def _button(at, label):
+    return next(b for b in at.button if b.label == label)
+
+
+def test_without_key_gemini_buttons_are_disabled_with_messages(app):
+    _faculty_app(app)
+    assert _button(app, "Parse with Gemini").disabled
+    app.file_uploader[0].upload("plan.pdf", b"%PDF-1.4", "application/pdf").run()
+    assert _button(app, "Parse with Gemini").disabled
+    assert any("Manually" in i.value and "secrets.toml" in i.value for i in app.info)
+    at = _ese_page()
+    _pick_roll(at, "25MCA007")
+    assert not at.exception and _button(at, "Generate AI review").disabled
+    assert any("No Gemini API key" in c.value for c in at.caption)
+
+
+def test_course_plan_flow_creates_subject_and_topics(app, monkeypatch):
+    calls = _fake_gemini(monkeypatch, CANNED_PLAN)
+    _faculty_app(app)
+    assert _button(app, "Parse with Gemini").disabled  # no file yet
+    app.file_uploader[0].upload("DAA_plan.pdf", b"%PDF-1.4 plan", "application/pdf").run()
+    assert not app.exception and calls == []  # nothing is sent before the click
+    app.button(key="plan_parse").click().run()
+    assert not app.exception and len(calls) == 1
+    assert "DAA_plan.pdf" in _text(app) and "2 units found" in _text(app)
+    assert [t.value for t in app.text_input[:3]] == ["MCA233", "Design and Analysis of Algorithms", "MCA-A"]
+    table = app.dataframe[0].value
+    assert list(table["topic"]) == ["Asymptotic notation", "Recurrences", "Merge sort"]
+    app.get("form_submit_button")[0].click().run()
+    assert not app.exception and not app.error
+    subj = [s for s in db.list_subjects() if s["code"] == "MCA233"][0]
+    assert subj["cia_weight"] == 0.5
+    assert [(t["unit_no"], t["title"]) for t in db.list_topics(subj["id"])] == [
+        (1, "Asymptotic notation"), (1, "Recurrences"), (2, "Merge sort")]
+    assert "course_plan_parsed" not in app.session_state
+    assert any("Created MCA233" in s.value for s in app.success)
+    assert len(calls) == 1  # creating the subject made no further API call
+
+
+def test_course_plan_error_is_shown_and_manual_tab_still_works(app, monkeypatch):
+    quota = genai_errors.ClientError(429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED"}})
+    _fake_gemini(monkeypatch, quota)
+    _faculty_app(app)
+    app.file_uploader[0].upload("plan.png", b"\x89PNG", "image/png").run()
+    app.button(key="plan_parse").click().run()
+    assert not app.exception and any("quota" in e.value for e in app.error)
+    app.text_input[0].set_value("MCA250")
+    app.text_input[1].set_value("Manual")
+    app.text_area[0].set_value("1 | One")
+    app.get("form_submit_button")[0].click().run()
+    assert not app.exception and any(s["code"] == "MCA250" for s in db.list_subjects())
+
+
+def test_ai_review_writes_a_draft_students_cannot_see(tmp_db, monkeypatch):
+    seed.ensure_seeded()
+    calls = _fake_gemini(monkeypatch, CANNED_REVIEW)
+    ds, roll = _subject("MCA231"), "25MCA012"
+    at = _ese_page()
+    _pick_roll(at, roll)
+    assert _button(at, "Generate AI review").disabled  # no script stored yet
+    db.upsert_review(ds, roll, script_name="script.png", script_mime="image/png", script=b"\x89PNG")
+    at.run()
+    assert not _button(at, "Generate AI review").disabled and calls == []
+    at.button(key=f"ese_ai_0_{ds}_{roll}").click().run()
+    assert not at.exception and len(calls) == 1
+    r = db.get_review(ds, roll)
+    assert r["ai_review"] == r["final_review"] and not r["published"]
+    assert "Clear headings" in r["final_review"] and "**Improve**" in r["final_review"]
+    assert at.text_area[0].value == r["final_review"]
+    stu = _dashboard(student_id=db.get_student_by_roll(roll)["id"], subject_id=ds)
+    assert "Clear headings" not in _text(stu) and "published a review yet" in _text(stu)
+    at.button(key=f"ese_publish_0_{ds}_{roll}").click().run()
+    stu = _dashboard(student_id=db.get_student_by_roll(roll)["id"], subject_id=ds)
+    assert "Clear headings" in _text(stu)
+
+
+def test_ai_review_error_and_large_script_warning(tmp_db, monkeypatch):
+    seed.ensure_seeded()
+    _fake_gemini(monkeypatch, TimeoutError("timed out"))
+    monkeypatch.setattr(config, "GEMINI_SCRIPT_WARN_MB", 0)
+    ds, roll = _subject("MCA231"), "25MCA012"
+    db.upsert_review(ds, roll, script_name="script.pdf", script_mime="application/pdf", script=b"%PDF")
+    at = _ese_page()
+    _pick_roll(at, roll)
+    assert any("may reject files this large" in w.value for w in at.warning)
+    at.button(key=f"ese_ai_0_{ds}_{roll}").click().run()
+    assert not at.exception
+    assert any("manual checklist instead" in e.value for e in at.error)
+    assert not (db.get_review(ds, roll)["final_review"] or "")
