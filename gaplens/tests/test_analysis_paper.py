@@ -177,3 +177,31 @@ def test_first_part_question_is_never_time_pressure():
     assert r.time_pressure  # me 60% -> 40%, class 71.25% -> 77.5%
     assert row(r, 1)["mistake_type"] == "Concept gap"
     assert row(r, 3)["mistake_type"] == "Time pressure"
+
+
+# --- summaries for the CIA tab ----------------------------------------------------
+def test_time_pressure_summary_names_the_last_third_and_reuses_the_drops():
+    q, m = paper([(10, "A")] * 4, {"ME": [10, 10, 4, 9],
+                                   **{f"R{i}": [10, 10, 9, 9] for i in range(3)}})
+    r = analysis.analyse_paper(q, m, "ME", set())
+    s = analysis.time_pressure_summary(r)
+    assert s.first_q_nos == [1, 2] and s.last_q_nos == [3, 4]
+    assert (s.last_score, s.last_max) == (13, 20)
+    assert s.last_pct == pytest.approx(65) and s.first_pct == pytest.approx(100)
+    assert (s.student_drop, s.class_drop) == (r.student_drop, r.class_drop)
+
+
+def test_time_pressure_summary_is_none_without_time_pressure():
+    assert analysis.time_pressure_summary(three_q([10, 10, 6], [[10, 10, 6]] * 3)) is None
+
+
+def test_last_third_start_rounds_the_last_third_up():
+    assert [analysis.last_third_start(n) for n in (3, 4, 5, 6, 7)] == [2, 2, 3, 4, 4]
+
+
+def test_marks_lost_by_mistake_covers_every_type_and_counts_blanks_in_full():
+    q, m = paper([(10, "A"), (5, "B"), (4, "C")], {"ME": [10, None, 1], "R1": [10, 5, 4]})
+    lost = analysis.marks_lost_by_mistake(analysis.analyse_paper(q, m, "ME", set()).table)
+    assert set(lost) == set(analysis.MISTAKE_TYPES)
+    assert lost["Not attempted"] == 5 and lost["OK"] == 0
+    assert sum(lost.values()) == 8

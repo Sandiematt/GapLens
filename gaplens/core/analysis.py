@@ -8,7 +8,16 @@ import pandas as pd
 
 import config
 
-STATUSES = ("No data", "On track", "Stretch", "At risk", "Out of reach", "Achieved", "Missed")
+# Goal statuses.
+NO_DATA, ON_TRACK, STRETCH, AT_RISK = "No data", "On track", "Stretch", "At risk"
+OUT_OF_REACH, ACHIEVED, MISSED = "Out of reach", "Achieved", "Missed"
+STATUSES = (NO_DATA, ON_TRACK, STRETCH, AT_RISK, OUT_OF_REACH, ACHIEVED, MISSED)
+WARNING_STATUSES = (AT_RISK, OUT_OF_REACH)  # goal statuses that raise an early warning
+
+
+def passed_ese(score: float) -> bool:
+    """True when an ESE score (out of the ESE maximum) reaches the pass mark."""
+    return score >= config.ESE_PASS_MARK - 1e-9
 
 
 def component_weights(cia_weight: float) -> dict[str, float]:
@@ -42,7 +51,8 @@ def goal_status(target: float, scores_by_component: dict[str, float | None],
     """Where a student stands against a target final mark.
 
     A component is done when its score is not None; components with zero
-    weight are ignored.
+    weight are ignored. Once nothing is left to sit, a failed ESE means the
+    goal is Missed, whatever the final mark.
     """
     weights = {c: w for c, w in component_weights(cia_weight).items() if w > 0}
     earned = done_weight = 0.0
@@ -57,23 +67,25 @@ def goal_status(target: float, scores_by_component: dict[str, float | None],
     current = earned / done_weight * 100 if done_weight else None
     required = (target - earned) / remaining * 100 if remaining else None
 
+    ese = scores_by_component.get("ESE")
     if done_weight == 0:
-        status, final = "No data", None
+        status, final = NO_DATA, None
     elif remaining == 0:
         final = earned
-        status = "Achieved" if earned >= target - 1e-9 else "Missed"
+        ese_failed = ese is not None and not passed_ese(ese)
+        status = ACHIEVED if earned >= target - 1e-9 and not ese_failed else MISSED
     else:
         final = None
         if required <= 0:
-            status = "On track"
+            status = ON_TRACK
         elif required > 100:
-            status = "Out of reach"
+            status = OUT_OF_REACH
         elif required <= current:
-            status = "On track"
+            status = ON_TRACK
         elif required <= current + config.STRETCH_MARGIN:
-            status = "Stretch"
+            status = STRETCH
         else:
-            status = "At risk"
+            status = AT_RISK
     return GoalResult(status, earned, done_weight, remaining, current, required, final)
 
 
@@ -115,13 +127,18 @@ def _pct(scores, maxes) -> float:
     return float(sum(scores)) / float(sum(maxes)) * 100
 
 
+def last_third_start(n: int) -> int:
+    """Index of the first of the last k = ceil(n/3) questions of an n-question paper."""
+    return n - math.ceil(n / 3)
+
+
 def time_pressure_drops(student_scores, class_avg_scores, maxes):
     """(student drop, class drop) in % points from the first n-k to the last k
     questions, k = ceil(n/3); (None, None) with fewer than the minimum questions."""
     n = len(maxes)
     if n < config.TIME_PRESSURE_MIN_QUESTIONS:
         return None, None
-    k = math.ceil(n / 3)
+    k = n - last_third_start(n)
     drop = lambda s: _pct(s[: n - k], maxes[: n - k]) - _pct(s[n - k:], maxes[n - k:])  # noqa: E731
     return drop(list(student_scores)), drop(list(class_avg_scores))
 
@@ -182,7 +199,7 @@ def analyse_paper(questions_df: pd.DataFrame, marks_df: pd.DataFrame, roll_no: s
                      and student_drop >= config.TIME_PRESSURE_DROP - _EPS
                      and student_drop - class_drop >= config.TIME_PRESSURE_EXCESS - _EPS)
     n = len(qids)
-    first_last = n - math.ceil(n / 3)
+    first_last = last_third_start(n)
     shares = class_scores / maxes  # per roll, per question
     strong = (shares >= config.SILLY_CLASS_SHARE - _EPS).mean(axis=0).to_numpy()
     table["mistake_type"] = [
@@ -197,6 +214,40 @@ def analyse_paper(questions_df: pd.DataFrame, marks_df: pd.DataFrame, roll_no: s
         topper_total=float(totals.max()), class_avg_total=float(totals.mean()),
         percentile=percentile_of(totals[roll_no], totals), class_size=int(len(totals)),
         time_pressure=bool(time_pressure), student_drop=student_drop, class_drop=class_drop)
+
+
+@dataclass(frozen=True)
+class TimePressureSummary:
+    first_q_nos: list[int]  # the earlier questions
+    last_q_nos: list[int]  # the last third
+    last_score: float  # marks the student earned on the last third (blanks are 0)
+    last_max: float
+    last_pct: float
+    first_pct: float  # the student's % on the earlier questions
+    student_drop: float
+    class_drop: float
+
+
+def time_pressure_summary(a: PaperAnalysis) -> TimePressureSummary | None:
+    """The facts behind a paper's time-pressure warning, or None if it has none."""
+    if not a.time_pressure or a.student_drop is None:
+        return None
+    t = a.table
+    start = last_third_start(len(t))
+    last = t.iloc[start:]
+    got, mx = float(last["score"].fillna(0).sum()), float(last["max_marks"].sum())
+    last_pct = got / mx * 100
+    return TimePressureSummary(
+        first_q_nos=[int(q) for q in t["q_no"].iloc[:start]],
+        last_q_nos=[int(q) for q in last["q_no"]], last_score=got, last_max=mx,
+        last_pct=last_pct, first_pct=last_pct + a.student_drop,
+        student_drop=a.student_drop, class_drop=a.class_drop)
+
+
+def marks_lost_by_mistake(table: pd.DataFrame) -> dict[str, float]:
+    """Marks lost on a paper per mistake type (every type present; blanks lose the full marks)."""
+    lost = (table["max_marks"] - table["score"].fillna(0)).groupby(table["mistake_type"]).sum()
+    return {m: float(lost.get(m, 0.0)) for m in MISTAKE_TYPES}
 
 
 def _tagged(table: pd.DataFrame) -> pd.DataFrame:
@@ -218,15 +269,56 @@ def topic_progress(analyses: dict[str, PaperAnalysis]) -> pd.DataFrame:
         t = _tagged(analyses[comp].table)
         if t.empty:
             continue
-        g = (t.groupby("topic_id", sort=False)
-             .agg(topic=("topic", "first"), score=("score", "sum"), mx=("max_marks", "sum"))
-             .reset_index())
-        g["pct"] = g["score"] / g["mx"] * 100
-        g.insert(0, "component", comp)
-        frames.append(g[["component", "topic_id", "topic", "pct"]])
+        per_topic = (t.groupby("topic_id", sort=False)
+                     .agg(topic=("topic", "first"), score=("score", "sum"), mx=("max_marks", "sum"))
+                     .reset_index())
+        per_topic["pct"] = per_topic["score"] / per_topic["mx"] * 100
+        per_topic.insert(0, "component", comp)
+        frames.append(per_topic[["component", "topic_id", "topic", "pct"]])
     if not frames:
         return pd.DataFrame(columns=["component", "topic_id", "topic", "pct"])
     return pd.concat(frames, ignore_index=True)
+
+
+TREND_UP, TREND_DOWN, TREND_FLAT = "up", "down", "flat"
+
+
+def trend_direction(first: float, last: float) -> str:
+    """Up or down when a topic moved more than PROGRESS_TREND_POINTS, else flat."""
+    if last > first + config.PROGRESS_TREND_POINTS:
+        return TREND_UP
+    if last < first - config.PROGRESS_TREND_POINTS:
+        return TREND_DOWN
+    return TREND_FLAT
+
+
+def topic_trends(progress: pd.DataFrame) -> pd.DataFrame:
+    """Topics asked in at least two papers: topic_id, topic, first, last, delta, direction.
+
+    ``progress`` is ``topic_progress`` output. first/last are the topic's % on its
+    first and last paper. Ranked biggest gain first; ties keep first-seen order.
+    """
+    cols = ["topic_id", "topic", "first", "last", "delta", "direction"]
+    rows = []
+    for tid, per_topic in progress.groupby("topic_id", sort=False):
+        if per_topic["component"].nunique() < 2:
+            continue
+        first, last = float(per_topic["pct"].iloc[0]), float(per_topic["pct"].iloc[-1])
+        rows.append({"topic_id": tid, "topic": per_topic["topic"].iloc[0], "first": first,
+                     "last": last, "delta": last - first,
+                     "direction": trend_direction(first, last)})
+    if not rows:
+        return pd.DataFrame(columns=cols)
+    trends = pd.DataFrame(rows, columns=cols)
+    return trends.sort_values("delta", ascending=False, kind="stable").reset_index(drop=True)
+
+
+def trend_lines(progress: pd.DataFrame) -> pd.DataFrame:
+    """The ``progress`` rows of the topics in ``topic_trends``, in its rank order."""
+    trends = topic_trends(progress)
+    rank = {tid: i for i, tid in enumerate(trends["topic_id"])}
+    lines = progress[progress["topic_id"].isin(list(rank))]
+    return lines.iloc[lines["topic_id"].map(rank).argsort(kind="stable")].reset_index(drop=True)
 
 
 def topic_losses(tables: list[pd.DataFrame]) -> pd.DataFrame:
@@ -243,12 +335,13 @@ def topic_losses(tables: list[pd.DataFrame]) -> pd.DataFrame:
     if t.empty:
         return pd.DataFrame(columns=cols)
     t["lost"] = t["max_marks"] - t["score"]
-    g = (t.groupby("topic_id", sort=False)
-         .agg(topic=("topic", "first"), lost=("lost", "sum"), max=("max_marks", "sum"))
-         .reset_index())
-    g["lost_pct"] = g["lost"] / g["max"] * 100
-    g = g.sort_values(["lost", "lost_pct", "topic"], ascending=[False, False, True], kind="stable")
-    return g[cols].reset_index(drop=True)
+    per_topic = (t.groupby("topic_id", sort=False)
+                 .agg(topic=("topic", "first"), lost=("lost", "sum"), max=("max_marks", "sum"))
+                 .reset_index())
+    per_topic["lost_pct"] = per_topic["lost"] / per_topic["max"] * 100
+    per_topic = per_topic.sort_values(["lost", "lost_pct", "topic"], ascending=[False, False, True],
+                                      kind="stable")
+    return per_topic[cols].reset_index(drop=True)
 
 
 # --- class-level views (SAN-126) ---------------------------------------------------
@@ -285,10 +378,11 @@ def class_topic_pct(papers: list[tuple[pd.DataFrame, pd.DataFrame]]) -> pd.DataF
         parts.append(pd.DataFrame({"topic": names, "score": got, "mx": mx}).fillna({"score": 0.0}))
     if not parts:
         return pd.DataFrame(columns=["topic", "pct"])
-    g = pd.concat(parts).groupby(level=0).agg(topic=("topic", "first"), score=("score", "sum"),
-                                              mx=("mx", "sum"))
-    g["pct"] = g["score"] / g["mx"] * 100
-    return (g[["topic", "pct"]].sort_values(["pct", "topic"], kind="stable").reset_index(drop=True))
+    per_topic = pd.concat(parts).groupby(level=0).agg(
+        topic=("topic", "first"), score=("score", "sum"), mx=("mx", "sum"))
+    per_topic["pct"] = per_topic["score"] / per_topic["mx"] * 100
+    return (per_topic[["topic", "pct"]].sort_values(["pct", "topic"], kind="stable")
+            .reset_index(drop=True))
 
 
 def early_warning_reasons(cia_pct: float | None, goal: GoalResult) -> list[str]:
@@ -296,6 +390,6 @@ def early_warning_reasons(cia_pct: float | None, goal: GoalResult) -> list[str]:
     reasons = []
     if cia_pct is not None and cia_pct < config.EARLY_WARNING_CIA_PCT:
         reasons.append(f"CIA average below {config.EARLY_WARNING_CIA_PCT}%")
-    if goal.status in ("At risk", "Out of reach"):
+    if goal.status in WARNING_STATUSES:
         reasons.append(f"{goal.status} target")
     return reasons

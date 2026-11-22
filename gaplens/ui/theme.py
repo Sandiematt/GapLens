@@ -87,7 +87,9 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
   color:var(--text2); margin:4px 0 6px; }}
 .gl-profile {{ display:flex; align-items:center; gap:10px; }}
 .gl-avatar {{ width:30px; height:30px; border-radius:999px; display:flex; align-items:center;
-  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }}
+  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;
+  background:{SHADES["sunflower"][0]}; color:{SHADES["sunflower"][2]}; }}
+.gl-label.gl-label-gap {{ margin-top:20px; }}
 .gl-profile-name {{ font-size:13px; font-weight:600; line-height:1.3; color:var(--text); }}
 .gl-profile-sub {{ font-size:12px; color:var(--text2); line-height:1.3; }}
 
@@ -108,11 +110,29 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-kpi-label {{ font-size:12px; color:var(--text2); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }}
 .gl-kpi-value {{ font-size:30px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; line-height:1.2; }}
 .gl-kpi-sub {{ font-size:12px; color:var(--text2); }}
+.gl-kpi-pill {{ margin:8px 0 6px; }}
+/* card titles: one size everywhere (card_title / section_head / tab_heading) */
+.gl-card-head {{ margin:0 0 4px; }}
+.gl-card-head-row {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; }}
+.gl-card-title {{ font-size:18px; font-weight:700; line-height:1.35; letter-spacing:-0.02em; color:var(--text); }}
+.gl-card-aside {{ flex-shrink:0; }}
+.gl-card-sub {{ font-size:13px; color:var(--text2); margin:4px 0 0; line-height:1.5; }}
+.gl-figure {{ font-size:30px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums;
+  line-height:1.2; margin:6px 0 8px; }}
+.gl-figure-aside {{ font-size:14px; font-weight:600; color:var(--text2); }}
+.gl-chart-title {{ font-size:14px; font-weight:700; color:var(--text); }}
+.gl-chart-aside {{ font-weight:500; color:var(--text2); }}
+.gl-empty {{ display:flex; gap:12px; align-items:flex-start; border:2px dashed var(--border);
+  background:var(--muted); border-radius:14px; padding:14px 16px; }}
+.gl-empty-icon {{ width:32px; height:32px; border-radius:10px; background:#fff; display:flex; align-items:center;
+  justify-content:center; font-size:16px; flex-shrink:0; }}
+.gl-empty-title {{ font-size:14px; font-weight:600; color:var(--text); }}
+.gl-empty-text {{ font-size:13px; color:var(--text2); line-height:1.5; margin-top:2px; }}
 .gl-hero {{ background:{GRAD_HERO}; color:{GOLD[950]}; border-radius:20px; padding:24px 28px; box-shadow:var(--shadow); }}
 .gl-hero h2 {{ color:{GOLD[950]}; margin:0 0 4px; font-size:24px; }}
 .gl-hero p {{ margin:0; font-size:14px; }}
 .gl-section {{ background:var(--card); border-radius:20px; box-shadow:var(--shadow); padding:20px 22px; margin-bottom:16px; }}
-.gl-section h3 {{ font-size:18px; font-weight:700; margin:0 0 8px; }}
+.gl-section .gl-card-head {{ margin-bottom:8px; }}
 .gl-section p, .gl-section li {{ font-size:14px; color:var(--text2); }}
 .gl-callout {{ display:flex; gap:12px; align-items:flex-start; background:{GRAD_CHAMPAGNE};
   border:1px solid var(--border); border-radius:14px; padding:16px; font-size:14px; color:var(--text); margin-top:8px; }}
@@ -139,19 +159,28 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-rule {{ display:flex; gap:10px; align-items:center; margin:6px 0; font-size:12px; color:var(--text2); }}
 .gl-formula {{ background:{GRAD_CHAMPAGNE}; border:1px solid var(--border); border-radius:14px; padding:12px 14px;
   font-size:14px; font-weight:600; color:var(--text); margin-bottom:10px; }}
+.gl-formula-note {{ display:block; font-weight:400; font-size:12px; margin-top:2px; }}
+.gl-formula.gl-formula-fail {{ background:#FEE2E2; border-color:#FEE2E2; color:#B91C1C; }}
 .gl-eyebrow {{ font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text2); margin:12px 0 4px; }}
 
 /* subject card */
 .gl-banner {{ display:flex; justify-content:space-between; align-items:center; padding:22px; }}
-.gl-banner-code {{ font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }}
+.gl-banner-hero {{ background:{GRAD_HERO}; color:{GOLD[950]}; }}
+.gl-banner-deep {{ background:{GRAD_DEEP}; color:#FFFFFF; }}
+.gl-banner-code {{ font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; opacity:.9; }}
 .gl-banner-name {{ font-size:22px; font-weight:700; letter-spacing:-0.025em; }}
 .gl-banner-icon {{ width:48px; height:48px; border-radius:14px; background:#fff; display:flex;
-  align-items:center; justify-content:center; font-size:22px; }}
+  align-items:center; justify-content:center; font-size:22px; color:{GOLD[700]}; }}
 .gl-card-body {{ padding:22px 22px 4px; display:flex; flex-direction:column; gap:18px; }}
 .gl-row {{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }}
 .gl-fac-avatar {{ width:34px; height:34px; border-radius:999px; background:#FBF3D0; color:#6B4A04;
   display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }}
 .gl-meta {{ font-size:12px; color:var(--text2); }}
+.gl-fac {{ display:flex; align-items:center; gap:10px; }}
+.gl-fac-name {{ font-size:14px; font-weight:600; }}
+.gl-split-cia {{ color:{GOLD[800]}; }}
+.gl-split-ese {{ color:{SHADES["bronze"][2]}; }}
+.gl-pill-row {{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }}
 .gl-split-labels {{ display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:8px; }}
 .gl-bar {{ display:flex; height:10px; border-radius:999px; overflow:hidden; gap:3px; }}
 .gl-topics {{ display:flex; flex-wrap:wrap; gap:8px; }}
@@ -205,6 +234,7 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
   text-transform:uppercase; letter-spacing:.04em; text-align:left; padding:10px 14px; border:none; }}
 .gl-table td {{ padding:10px 14px; border:none; border-top:1px solid #EFE6D2; color:var(--text); }}
 .gl-table .gl-q {{ font-weight:700; }}
+.gl-table th.gl-num-col, .gl-table td.gl-num-col {{ text-align:right; }}
 .gl-table .gl-muted {{ color:var(--text2); }}
 .gl-table .gl-you {{ font-weight:700; color:{GOLD[800]}; }}
 .gl-table .gl-pill {{ font-size:12px; padding:3px 10px; }}
@@ -227,6 +257,7 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 .gl-rank-lost {{ font-size:14px; color:var(--text); margin:14px 0 8px; font-variant-numeric:tabular-nums; }}
 .gl-bar {{ height:10px; border-radius:999px; background:#F1F1F4; overflow:hidden; }}
 .gl-bar > div {{ height:100%; border-radius:999px; }}
+.gl-rank-gap {{ margin-top:12px; }}
 .gl-eyebrow2 {{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
   color:var(--text2); margin:14px 0 8px; }}
 .gl-res {{ display:flex; align-items:center; gap:12px; border:1px solid var(--border); border-radius:14px;
@@ -246,6 +277,9 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
   flex-wrap:wrap; margin:22px 0 10px; }}
 .gl-section-head .gl-section-title {{ font-size:18px; font-weight:700; color:var(--text); letter-spacing:-0.02em; }}
 .gl-section-head span {{ font-size:12px; color:var(--text2); }}
+.gl-tab-head {{ margin:8px 0 14px; }}
+.gl-tab-head .gl-section-title {{ font-size:20px; font-weight:700; color:var(--text); letter-spacing:-0.02em; line-height:1.3; }}
+.gl-tab-sub {{ font-size:13px; color:var(--text2); margin:4px 0 0; }}
 """
 
 

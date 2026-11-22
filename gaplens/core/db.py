@@ -262,6 +262,20 @@ def list_topics(subject_id: int, conn=None) -> list[dict]:
             "SELECT * FROM topics WHERE subject_id = ? ORDER BY unit_no, id", (subject_id,)))
 
 
+def list_topics_by_subject(subject_ids) -> dict[int, list[dict]]:
+    """{subject_id: topics} for many subjects in one query (every id gets a list)."""
+    ids = [int(i) for i in subject_ids]
+    out: dict[int, list[dict]] = {i: [] for i in ids}
+    if not ids:
+        return out
+    marks = ",".join("?" * len(ids))
+    with _session() as c:
+        for t in _rows(c.execute(f"SELECT * FROM topics WHERE subject_id IN ({marks}) "
+                                 "ORDER BY unit_no, id", ids)):
+            out[t["subject_id"]].append(t)
+    return out
+
+
 def create_subject_with_topics(faculty_id: int, code: str, name: str, class_name: str,
                                cia_weight: float, topics: list[tuple[int, str]]) -> int:
     """Create a subject and its topics in one transaction (all or nothing)."""

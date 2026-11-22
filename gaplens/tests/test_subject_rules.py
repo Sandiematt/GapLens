@@ -36,6 +36,11 @@ def test_topic_row_validation():
     assert rules.validate_topic_rows([{"unit_no": 1, "title": "A"}, {"unit_no": 2, "title": "a"}])
 
 
+def test_a_subject_needs_at_least_one_topic():
+    assert rules.validate_topic_rows([]) == [rules.NEED_A_TOPIC]
+    assert rules.NEED_A_TOPIC in rules.validate_subject("A", "B", "C", 50, [])
+
+
 # --- storage ---------------------------------------------------------------
 @pytest.fixture
 def subj(tmp_db):
@@ -91,3 +96,12 @@ def test_subject_summaries_count_students_and_topics_for_owner_only(subj):
     db.enroll(s, sid)
     rows = db.list_subject_summaries(fid)
     assert [(r["code"], r["student_count"], r["topic_count"]) for r in rows] == [("X1", 1, 2)]
+
+
+def test_list_topics_by_subject_reads_many_subjects_at_once(subj):
+    fid, sid = subj
+    other = db.create_subject_with_topics(fid, "Y", "Y", "MCA-A", 0.5, [(1, "Keep")])
+    by_subject = db.list_topics_by_subject([sid, other, 999])
+    assert [t["title"] for t in by_subject[sid]] == ["A", "B"]
+    assert [t["title"] for t in by_subject[other]] == ["Keep"] and by_subject[999] == []
+    assert db.list_topics_by_subject([]) == {}

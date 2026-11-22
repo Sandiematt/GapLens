@@ -75,3 +75,28 @@ def test_non_default_weight():
     assert g.status == "On track"
     done = {"CIA-1": 25, "CIA-2": 50, "CIA-3": 25, "ESE": 50}  # 60 + 20
     assert analysis.goal_status(80, done, 0.6).final == pytest.approx(80)
+
+
+def test_ese_fail_means_missed_even_above_the_target():
+    full = {"CIA-1": 25, "CIA-2": 50, "CIA-3": 25, "ESE": 38}  # 50 + 19 = 69
+    g = analysis.goal_status(60, full, 0.5)
+    assert g.final == pytest.approx(69) and g.status == analysis.MISSED
+    passed = dict(full, ESE=40)  # exactly the pass mark: 70
+    assert analysis.goal_status(60, passed, 0.5).status == analysis.ACHIEVED
+
+
+def test_ese_fail_only_decides_once_nothing_is_left_to_sit():
+    # CIA-3 still to write: the ESE fail does not end the goal yet
+    g = analysis.goal_status(40, {"CIA-1": 25, "CIA-2": 50, "CIA-3": None, "ESE": 30}, 0.5)
+    assert g.status not in (analysis.MISSED, analysis.ACHIEVED)
+
+
+def test_passed_ese_uses_the_pass_mark():
+    assert analysis.passed_ese(analysis.config.ESE_PASS_MARK)
+    assert not analysis.passed_ese(analysis.config.ESE_PASS_MARK - 0.5)
+    assert analysis.passed_ese(100)
+
+
+def test_status_constants_match_the_status_list():
+    assert analysis.STATUSES == ("No data", "On track", "Stretch", "At risk", "Out of reach",
+                                 "Achieved", "Missed")

@@ -1,8 +1,6 @@
 """Sidebar: brand, role navigation, View-as switch, profile picker, demo reset."""
 from __future__ import annotations
 
-from html import escape
-
 import streamlit as st
 
 import config
@@ -37,11 +35,16 @@ def _on_profile_change(role: str) -> None:
         (profile.select_student if role == "Student" else profile.select_faculty)(chosen)
 
 
+def student_option_label(student: dict) -> str:
+    """Student picker label: roll number and class only, never another student's name."""
+    return f'{student["roll_no"]} · {student["class_name"]}'
+
+
 def _profile_picker(role: str) -> None:
     if role == "Student":
         people = db.list_students()
         active = profile.current_student()
-        label = lambda p: f'{p["name"]} · {p["roll_no"]}'  # noqa: E731
+        label = student_option_label
     else:
         people = db.list_faculty()
         active = profile.current_faculty()
@@ -56,11 +59,7 @@ def _profile_picker(role: str) -> None:
     st.selectbox("Profile", ids, key=key, format_func=lambda i: label(by_id[i]),
                  label_visibility="collapsed", on_change=_on_profile_change, args=(role,))
     sub = f'{active["roll_no"]} · {active["class_name"]}' if role == "Student" else "Faculty"
-    components.render(
-        f'<div class="gl-profile"><div class="gl-avatar" style="background:#FEF9C3;color:#6B3A10">'
-        f'{escape(components.initials(active["name"]))}</div><div>'
-        f'<div class="gl-profile-name">{escape(active["name"])}</div>'
-        f'<div class="gl-profile-sub">{escape(sub)}</div></div></div>')
+    components.render(components.profile_chip(active["name"], sub))
 
 
 def _on_subject_change() -> None:
@@ -72,7 +71,7 @@ def _on_subject_change() -> None:
 def _subject_picker() -> None:
     """Sidebar 'Subject' select over the student's enrolled subjects."""
     subjects = profile.enrolled_subjects(profile.current_student())
-    components.render('<div class="gl-label" style="margin-top:20px">Subject</div>')
+    components.render(components.label("Subject", "gl-label-gap"))
     if not subjects:
         st.caption("Enroll in a subject from My Subjects.")
         return
@@ -132,13 +131,13 @@ def render_sidebar(pages: list, role: str) -> None:
     """Draw the whole sidebar. ``pages`` are the st.Page objects for ``role``."""
     with st.sidebar:
         _brand()
-        components.render(f'<div class="gl-label" style="margin-top:20px">{escape(role)}</div>')
+        components.render(components.label(role, "gl-label-gap"))
         for page in pages:
             st.page_link(page)
         if role == "Student":
             _subject_picker()
         with st.container(key="sidebar_footer"):
-            components.render('<div class="gl-label">View as</div>')
+            components.render(components.label("View as"))
             st.session_state["role_widget"] = role  # sync before the widget renders
             st.segmented_control("View as", list(config.ROLES), key="role_widget", width="stretch",
                                  label_visibility="collapsed", on_change=_on_role_change)

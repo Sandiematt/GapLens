@@ -26,6 +26,7 @@ STRETCH_MARGIN = 15
 EARLY_WARNING_CIA_PCT = 40
 TOP_WEAK_TOPICS = 3
 BIG_GAP_PCT = 50
+PROGRESS_TREND_POINTS = 5  # a topic moving more than this is improving or slipping
 
 # --- Demo data ----------------------------------------------------------------
 DEMO_FACULTY_NAME = "Dr. Demo Faculty"

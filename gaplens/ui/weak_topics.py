@@ -11,14 +11,17 @@ from ui import components
 def _resource_columns(subject_name: str, row: dict) -> None:
     left, right = st.columns(2, gap="medium")
     with left:
-        components.render('<div class="gl-eyebrow2">From your faculty</div>')
+        components.render(components.eyebrow("From your faculty"))
         if row["resources"]:
             components.render(components.resource_list(
                 [components.resource_card(r) for r in row["resources"]]))
         else:
-            st.caption("No verified resources for this topic yet. Try the searches.")
+            components.render(components.empty_state(
+                "No verified resources yet",
+                f'Your faculty hasn\'t added a link for {row["topic"]} yet. '
+                "Start with the searches in More to explore."))
     with right:
-        components.render('<div class="gl-eyebrow2">More to explore</div>')
+        components.render(components.eyebrow("More to explore"))
         components.render(components.resource_list(
             [components.resource_card(link, verified=False)
              for link in suggestions.search_links(subject_name, row["topic"])]))
@@ -35,15 +38,16 @@ def render_weak_topics(subject: dict, losses: list[dict], top_n: int = config.TO
             "every mark.", "&#127881;"))
         return
     top = losses[:top_n]
-    for col, (i, r) in zip(st.columns(len(top)), enumerate(top, start=1)):
-        with col, components.card(f"{key}_rank_{i}"):
-            components.render(components.weak_topic_header(
-                i, r["topic"], r["lost"], r["max"], r["lost_pct"]))
+    with st.container(key=f"{key}_ranks"):
+        for col, (i, r) in zip(st.columns(len(top)), enumerate(top, start=1)):
+            with col, components.card(f"{key}_rank_{i}"):
+                components.render(components.weak_topic_header(
+                    i, r["topic"], r["lost"], r["max"], r["lost_pct"]))
     st.write("")
     with components.card(f"{key}_resources"):
-        st.markdown("### Resources by topic")
-        st.caption("Verified links come from your faculty. Auto-suggested links are searches, "
-                   "not checked by anyone.")
+        components.render(components.card_title(
+            "Resources by topic", "Verified links come from your faculty. Auto-suggested links "
+                                  "are searches, not checked by anyone."))
         tabs = st.tabs([r["topic"] for r in top])
         for tab, r in zip(tabs, top):
             with tab:

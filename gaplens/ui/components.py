@@ -9,6 +9,8 @@ from html import escape
 
 import streamlit as st
 
+import config
+from core import analysis, suggestions
 from ui import theme
 
 
@@ -19,6 +21,11 @@ def _h(html: str) -> str:
 
 def render(html: str) -> None:
     st.markdown(_h(html), unsafe_allow_html=True)
+
+
+def num(x: float) -> str:
+    """1 decimal place, trailing zeros dropped (the one number format for marks)."""
+    return suggestions.fmt(x)
 
 
 def pill(text: str, kind: str = "gold") -> str:
@@ -47,10 +54,17 @@ def hero_banner(title: str, text: str = "", eyebrow: str = "", aside_html: str =
               f'{aside}</div></div>')
 
 
+def target_card(label: str, value: str, unit: str) -> str:
+    """A white mini card on the hero banner (e.g. 'CIA-3 target 18 / 25')."""
+    return (f'<div class="gl-target-card"><small>{escape(label)}</small>'
+            f'<b>{escape(value)}</b> <span>{escape(unit)}</span></div>')
+
+
 # Goal status -> pill kind (see theme.PILLS).
-STATUS_KIND = {"On track": "on-track", "Stretch": "stretch", "At risk": "at-risk",
-               "Out of reach": "out-of-reach", "Achieved": "ok", "Missed": "at-risk",
-               "No data": "not-attempted"}
+STATUS_KIND = {analysis.ON_TRACK: "on-track", analysis.STRETCH: "stretch",
+               analysis.AT_RISK: "at-risk", analysis.OUT_OF_REACH: "out-of-reach",
+               analysis.ACHIEVED: "ok", analysis.MISSED: "at-risk",
+               analysis.NO_DATA: "not-attempted"}
 
 
 def status_pill(status: str, label: str | None = None) -> str:
@@ -60,12 +74,59 @@ def status_pill(status: str, label: str | None = None) -> str:
 def status_kpi_card(label: str, status: str, sub: str = "", pill_text: str | None = None) -> str:
     sub_html = f'<div class="gl-kpi-sub">{escape(sub)}</div>' if sub else ""
     return _h(f'<div class="gl-kpi"><div class="gl-kpi-label">{escape(label)}</div>'
-              f'<div style="margin:8px 0 6px">{status_pill(status, pill_text)}</div>{sub_html}</div>')
+              f'<div class="gl-kpi-pill">{status_pill(status, pill_text)}</div>{sub_html}</div>')
 
 
 def section_card(title: str, body_html: str = "") -> str:
     """``body_html`` is trusted HTML: escape any user text before passing it."""
-    return _h(f'<div class="gl-section"><h3>{escape(title)}</h3>{body_html}</div>')
+    return _h(f'<div class="gl-section">{card_title(title)}{body_html}</div>')
+
+
+def card_title(title: str, subtitle: str = "", aside_html: str = "") -> str:
+    """The one card title: 18 px bold, an optional muted subtitle, and ``aside_html``
+    (trusted HTML, e.g. a pill) pinned to the right on the title's line."""
+    sub = f'<p class="gl-card-sub">{escape(subtitle)}</p>' if subtitle else ""
+    aside = f'<div class="gl-card-aside">{aside_html}</div>' if aside_html else ""
+    return _h(f'<div class="gl-card-head"><div class="gl-card-head-row">'
+              f'<div class="gl-card-title">{escape(title)}</div>{aside}</div>{sub}</div>')
+
+
+def card_eyebrow(text: str) -> str:
+    """Small uppercase label at the top of a card (e.g. 'Final mark vs target')."""
+    return f'<div class="gl-kpi-label">{escape(text)}</div>'
+
+
+def big_figure(value: str, aside: str = "") -> str:
+    """A large figure inside a card, with optional muted text after it."""
+    a = f' <span class="gl-figure-aside">{escape(aside)}</span>' if aside else ""
+    return f'<div class="gl-figure">{escape(value)}{a}</div>'
+
+
+def empty_state(title: str, text: str, icon: str = "&#128218;") -> str:
+    """A small dashed card for 'nothing here yet' (``icon`` is trusted HTML)."""
+    return _h(f'<div class="gl-empty"><div class="gl-empty-icon">{icon}</div><div>'
+              f'<div class="gl-empty-title">{escape(title)}</div>'
+              f'<div class="gl-empty-text">{escape(text)}</div></div></div>')
+
+
+def table(headers: list[str], rows: list[list[str]], numeric: tuple[int, ...] = (),
+          classes: dict[int, str] | None = None) -> str:
+    """Read-only table. Cells are trusted HTML: escape user text before passing it.
+
+    ``numeric`` column indexes are right-aligned (header and cells); ``classes``
+    adds a css class to every cell of a column.
+    """
+    classes = classes or {}
+
+    def cls(i: int) -> str:
+        names = (["gl-num-col"] if i in numeric else []) + ([classes[i]] if i in classes else [])
+        return f' class="{" ".join(names)}"' if names else ""
+
+    head = "".join(f"<th{cls(i)}>{escape(h)}</th>" for i, h in enumerate(headers))
+    body = "".join("<tr>" + "".join(f"<td{cls(i)}>{c}</td>" for i, c in enumerate(r)) + "</tr>"
+                   for r in rows)
+    return _h(f'<div class="gl-table-wrap"><table class="gl-table"><thead><tr>{head}</tr></thead>'
+              f'<tbody>{body}</tbody></table></div>')
 
 
 def callout(text: str) -> str:
@@ -110,20 +171,52 @@ def card(key: str):
     return st.container(border=True, key=f"card_{key}")
 
 
+def label(text: str, extra_class: str = "") -> str:
+    """Small uppercase label (sidebar sections)."""
+    cls = f"gl-label {extra_class}".strip()
+    return f'<div class="{cls}">{escape(text)}</div>'
+
+
+def eyebrow(text: str) -> str:
+    """Uppercase sub-heading inside a card."""
+    return f'<div class="gl-eyebrow2">{escape(text)}</div>'
+
+
+def profile_chip(name: str, sub: str) -> str:
+    """Avatar, name and one line under it (the sidebar's active profile)."""
+    return _h(f'<div class="gl-profile"><div class="gl-avatar">{escape(initials(name))}</div><div>'
+              f'<div class="gl-profile-name">{escape(name)}</div>'
+              f'<div class="gl-profile-sub">{escape(sub)}</div></div></div>')
+
+
+# --- goal tab ----------------------------------------------------------------------
+def rule_row(pill_html: str, text: str) -> str:
+    """One status-rule line: a pill (trusted HTML) and its explanation."""
+    return f'<div class="gl-rule">{pill_html}<span>{escape(text)}</span></div>'
+
+
+def formula(main: str, note: str = "", fail: bool = False) -> str:
+    """A champagne formula strip; ``fail`` makes it the red pass-mark warning."""
+    n = f'<span class="gl-formula-note">{escape(note)}</span>' if note else ""
+    cls = "gl-formula gl-formula-fail" if fail else "gl-formula"
+    return f'<div class="{cls}">{escape(main)}{n}</div>'
+
+
+def chart_title(title: str, aside: str = "") -> str:
+    """Small bold label above a chart inside a card."""
+    a = f' <span class="gl-chart-aside">· {escape(aside)}</span>' if aside else ""
+    return f'<div class="gl-chart-title">{escape(title)}{a}</div>'
+
+
 # --- CIA analysis (SAN-124) ----------------------------------------------------
 # Mistake type -> pill kind (see theme.PILLS) and the css suffix used for cards.
-MISTAKE_KIND = {"OK": "ok", "Concept gap": "concept-gap", "Not attempted": "not-attempted",
-                "Silly error flagged": "silly-flagged", "Silly loss": "silly-loss",
-                "Time pressure": "time-pressure"}
+MISTAKE_KIND = {analysis.OK: "ok", analysis.CONCEPT_GAP: "concept-gap",
+                analysis.NOT_ATTEMPTED: "not-attempted", analysis.SILLY_FLAGGED: "silly-flagged",
+                analysis.SILLY_LOSS: "silly-loss", analysis.TIME_PRESSURE: "time-pressure"}
 
 
 def mistake_pill(mistake: str) -> str:
     return pill(mistake, MISTAKE_KIND.get(mistake, "gold"))
-
-
-def num(x: float) -> str:
-    """1 decimal place, trailing zeros dropped."""
-    return f"{x:.1f}".rstrip("0").rstrip(".")
 
 
 def ordinal(n: float) -> str:
@@ -150,21 +243,17 @@ def warning_banner(title: str, text: str, icon: str = "&#9719;") -> str:
 def question_table(rows: list[dict]) -> str:
     """Read-only question table. Row keys: q_no, topic, max, you, topper, class_avg,
     percentile, mistake (already-formatted strings, except q_no and mistake)."""
-    head = "".join(f"<th>{h}</th>" for h in
-                   ("Q", "Topic", "Max", "You", "Topper", "Class avg", "Percentile", "Mistake type"))
-    body = "".join(
-        f'<tr><td class="gl-q">Q{int(r["q_no"])}</td><td>{escape(r["topic"])}</td>'
-        f'<td class="gl-muted">{escape(r["max"])}</td><td class="gl-you">{escape(r["you"])}</td>'
-        f'<td>{escape(r["topper"])}</td><td>{escape(r["class_avg"])}</td>'
-        f'<td>{escape(r["percentile"])}</td><td>{mistake_pill(r["mistake"])}</td></tr>'
-        for r in rows)
-    return _h(f'<div class="gl-table-wrap"><table class="gl-table"><thead><tr>{head}</tr></thead>'
-              f'<tbody>{body}</tbody></table></div>')
+    headers = ["Q", "Topic", "Max", "You", "Topper", "Class avg", "Percentile", "Mistake type"]
+    body = [[f'Q{int(r["q_no"])}', escape(r["topic"]), escape(r["max"]), escape(r["you"]),
+             escape(r["topper"]), escape(r["class_avg"]), escape(r["percentile"]),
+             mistake_pill(r["mistake"])] for r in rows]
+    return table(headers, body, numeric=(2, 3, 4, 5, 6),
+                 classes={0: "gl-q", 2: "gl-muted", 3: "gl-you"})
 
 
 def tip_card_html(mistake: str, gain: float, title: str, text: str) -> str:
-    g = f"Up to +{num(gain)} mark" + ("" if abs(gain - 1) < 1e-9 else "s")
-    return _h(f'<div class="gl-row">{mistake_pill(mistake)}<span class="gl-gain">{escape(g)}</span></div>'
+    gain_text = f"Up to +{num(gain)} mark" + ("" if abs(gain - 1) < 1e-9 else "s")
+    return _h(f'<div class="gl-row">{mistake_pill(mistake)}<span class="gl-gain">{escape(gain_text)}</span></div>'
               f'<div class="gl-tip-title">{escape(title)}</div><div class="gl-tip-text">{escape(text)}</div>')
 
 
@@ -174,17 +263,32 @@ def section_head(title: str, aside: str = "") -> str:
     return _h(f'<div class="gl-section-head"><div class="gl-section-title">{escape(title)}</div>{a}</div>')
 
 
+def tab_heading(title: str, subtitle: str = "") -> str:
+    """Section-sized heading at the top of a dashboard tab (never page-sized)."""
+    sub = f'<p class="gl-tab-sub">{escape(subtitle)}</p>' if subtitle else ""
+    return _h(f'<div class="gl-tab-head"><div class="gl-section-title">{escape(title)}</div>{sub}</div>')
+
+
 def tip_card(key: str, mistake: str):
     """Card container for a suggestion; the top edge takes the mistake colour."""
     return st.container(border=True, key=f"tip_{MISTAKE_KIND.get(mistake, 'ok')}_{key}")
 
 
+TREND_STYLE = {analysis.TREND_UP: ("ok", "&#8599; "), analysis.TREND_DOWN: ("at-risk", "&#8600; "),
+               analysis.TREND_FLAT: ("stretch", "")}
+
+
 def progress_chip(topic: str, first: float, last: float) -> str:
-    kind = "ok" if last > first + 5 else ("at-risk" if last < first - 5 else "stretch")
-    arrow = "&#8599; " if kind == "ok" else ("&#8600; " if kind == "at-risk" else "")
+    kind, arrow = TREND_STYLE[analysis.trend_direction(first, last)]
     bg, fg = theme.PILLS[kind]
     return (f'<span class="gl-pill" style="background:{bg};color:{fg}">{arrow}'
             f'{escape(topic)}: {first:.0f}% → {last:.0f}%</span>')
+
+
+def progress_chips(trends) -> str:
+    """One chip per row of ``analysis.topic_trends`` (topic, first, last), in its order."""
+    return _h('<div class="gl-chips">' + "".join(
+        progress_chip(r.topic, r.first, r.last) for r in trends.itertuples()) + "</div>")
 
 
 # --- resources (SAN-125) ---------------------------------------------------------
@@ -219,9 +323,62 @@ def resource_list(cards: list[str]) -> str:
     return _h(f'<div class="gl-res-list">{"".join(cards)}</div>')
 
 
+def gap_pill(lost_pct: float) -> str:
+    """Big gap (lost% at or over BIG_GAP_PCT): start with basics; otherwise go to practice."""
+    if lost_pct >= config.BIG_GAP_PCT:
+        return pill("Big gap · start with basics", "at-risk")
+    return pill("Small gap · go to practice", "stretch")
+
+
 def weak_topic_header(rank: int, title: str, lost: float, mx: float, pct: float) -> str:
-    color = "#DC2626" if pct >= 50 else "#F59E0B"
+    """Rank card body: rank, topic, marks lost, a bar and the gap pill."""
+    color = "#DC2626" if pct >= config.BIG_GAP_PCT else "#F59E0B"
     return _h(f'<div class="gl-rank"><div class="gl-rank-n">#{rank}</div>'
               f'<div class="gl-rank-title">{escape(title)}</div></div>'
               f'<div class="gl-rank-lost">Lost {num(lost)} of {num(mx)} marks ({pct:.0f}%)</div>'
-              f'<div class="gl-bar"><div style="width:{min(100, pct):.0f}%;background:{color}"></div></div>')
+              f'<div class="gl-bar"><div style="width:{min(100, pct):.0f}%;background:{color}"></div></div>'
+              f'<div class="gl-rank-gap">{gap_pill(pct)}</div>')
+
+
+# --- student My Subjects card ------------------------------------------------------
+# Banner variants alternate between the hero gold and deep gold, as in the design.
+BANNERS = [("gl-banner-hero", "&#128214;"), ("gl-banner-deep", "&lt;/&gt;")]
+SEG_COLORS = [theme.SHADES["lemon"][1], theme.SHADES["honey"][1],
+              theme.SHADES["marigold"][1], theme.SHADES["bronze"][1]]
+
+
+def weight_split(cia_weight: float) -> str:
+    """CIA/ESE split labels over a bar with one segment per component, sized by weight."""
+    cia_pct, ese_pct = round(cia_weight * 100), round((1 - cia_weight) * 100)
+    parts = " + ".join(f"{c} /{config.COMPONENTS[c]}" for c in config.CIA_COMPONENTS)
+    scale = ("halved" if abs(cia_weight - config.DEFAULT_CIA_WEIGHT) < 1e-9
+             else f"scaled to {cia_pct}")
+    weights = analysis.component_weights(cia_weight)
+    segs = "".join(f'<div style="flex:{weights[c]};background:{color}"></div>'
+                   for c, color in zip(config.COMPONENTS, SEG_COLORS) if weights[c] > 0)
+    return _h(f'<div><div class="gl-split-labels"><span class="gl-split-cia">'
+              f'CIA {cia_pct} · {parts}, {scale}</span><span class="gl-split-ese">ESE {ese_pct}</span>'
+              f'</div><div class="gl-bar gl-bar-split">{segs}</div></div>')
+
+
+def subject_card(subject: dict, idx: int, topics: list[dict], meta: str) -> str:
+    """Banner, faculty, weight split and topic chips of one subject card."""
+    cls, icon = BANNERS[idx % len(BANNERS)]
+    chips = "".join(chip(t["title"], i) for i, t in enumerate(topics))
+    return _h(
+        f'<div class="gl-banner {cls}"><div>'
+        f'<div class="gl-banner-code">{escape(subject["code"])} · {escape(subject["class_name"])}</div>'
+        f'<div class="gl-banner-name">{escape(subject["name"])}</div></div>'
+        f'<div class="gl-banner-icon">{icon}</div></div>'
+        f'<div class="gl-card-body"><div class="gl-row"><div class="gl-fac">'
+        f'<div class="gl-fac-avatar">{escape(initials(subject["faculty_name"]))}</div><div>'
+        f'<div class="gl-meta">Faculty</div><div class="gl-fac-name">'
+        f'{escape(subject["faculty_name"])}</div></div></div>'
+        f'<span class="gl-meta">{escape(meta)}</span></div>'
+        f'{weight_split(subject["cia_weight"])}<div class="gl-topics">{chips}</div></div>')
+
+
+def faculty_subject_summary(code: str, name: str, pills_html: str) -> str:
+    """Title and pills of a faculty subject card (``pills_html`` is trusted)."""
+    return _h(f'<div class="gl-card-title">{escape(code)} {escape(name)}</div>'
+              f'<div class="gl-pill-row">{pills_html}</div>')

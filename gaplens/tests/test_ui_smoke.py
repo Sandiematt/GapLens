@@ -543,3 +543,31 @@ def test_ai_review_error_and_large_script_warning(tmp_db, monkeypatch):
     assert not at.exception
     assert any("manual checklist instead" in e.value for e in at.error)
     assert not (db.get_review(ds, roll)["final_review"] or "")
+
+
+# --- polish pass: privacy and ESE-fail status ------------------------------------------
+def test_student_picker_shows_roll_numbers_only(app):
+    app.run()
+    assert not app.exception
+    picker = app.sidebar.selectbox(key="profile_widget_Student")
+    assert "25MCA007 · MCA-A" in picker.options
+    names = {s["name"] for s in db.list_students()}
+    assert not any(name in option for option in picker.options for name in names)
+    assert "Demo Student" in _text(app)  # the signed-in student's own chip still shows the name
+
+
+def test_faculty_picker_still_shows_names(app):
+    _faculty_app(app)
+    assert config.DEMO_FACULTY_NAME in app.sidebar.selectbox(key="profile_widget_Faculty").options
+
+
+def test_ese_fail_shows_missed_on_goal_and_ese_tabs(tmp_db):
+    seed.ensure_seeded()
+    ds = _subject("MCA231")
+    sid = db.get_student_by_roll("25MCA012")["id"]
+    db.set_target(sid, ds, 40)  # a target the final mark clears, but the ESE is a fail
+    at = _dashboard(student_id=sid, subject_id=ds)
+    assert not at.exception
+    text = _text(at)
+    assert "/100: Missed" in text and "/100: Achieved" not in text  # the goal hero
+    assert "below the pass mark" in text

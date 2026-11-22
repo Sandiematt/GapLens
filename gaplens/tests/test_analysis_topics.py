@@ -58,3 +58,38 @@ def test_topic_losses_groups_by_topic_id_not_title():
 
 def test_topic_losses_empty():
     assert analysis.topic_losses([]).empty
+
+
+# --- topic trends (Progress tab) -----------------------------------------------
+def progress_rows(rows):
+    return pd.DataFrame(rows, columns=["component", "topic_id", "topic", "pct"])
+
+
+def test_topic_trends_rank_biggest_gain_first_and_need_two_papers():
+    rows = progress_rows([("CIA-1", 7, "Recursion", 13.0), ("CIA-1", 8, "Arrays", 80.0),
+                          ("CIA-1", 9, "Stacks", 50.0), ("CIA-2", 7, "Recursion", 70.0),
+                          ("CIA-2", 8, "Arrays", 60.0), ("CIA-3", 8, "Arrays", 78.0)])
+    trends = analysis.topic_trends(rows)
+    assert list(trends.columns) == ["topic_id", "topic", "first", "last", "delta", "direction"]
+    assert list(trends["topic"]) == ["Recursion", "Arrays"]  # Stacks is in one paper only
+    assert trends.iloc[0][["first", "last", "delta"]].tolist() == [13, 70, 57]
+    assert trends.iloc[1]["first"] == 80 and trends.iloc[1]["last"] == 78  # first vs last paper
+    lines = analysis.trend_lines(rows)
+    assert list(zip(lines["topic"], lines["component"])) == [
+        ("Recursion", "CIA-1"), ("Recursion", "CIA-2"),
+        ("Arrays", "CIA-1"), ("Arrays", "CIA-2"), ("Arrays", "CIA-3")]
+
+
+def test_topic_trends_empty_when_no_topic_repeats():
+    rows = progress_rows([("CIA-1", 7, "Recursion", 13.0), ("CIA-2", 8, "Arrays", 60.0)])
+    assert analysis.topic_trends(rows).empty and analysis.trend_lines(rows).empty
+    assert analysis.topic_trends(progress_rows([])).empty
+
+
+def test_trend_direction_uses_the_config_threshold(monkeypatch):
+    p = analysis.config.PROGRESS_TREND_POINTS
+    assert analysis.trend_direction(50, 50 + p + 1) == analysis.TREND_UP
+    assert analysis.trend_direction(50, 50 - p - 1) == analysis.TREND_DOWN
+    assert analysis.trend_direction(50, 50 + p) == analysis.TREND_FLAT
+    monkeypatch.setattr(analysis.config, "PROGRESS_TREND_POINTS", 20)
+    assert analysis.trend_direction(50, 60) == analysis.TREND_FLAT

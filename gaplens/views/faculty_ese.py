@@ -25,12 +25,12 @@ if not subjects:
     st.stop()
 show_flash()
 
-dv = st.session_state.get("data_version", 0)
-rv = st.session_state.get("ese_version", 0)  # bumped after saving a script (resets the uploader)
+data_version = st.session_state.get("data_version", 0)
+ese_version = st.session_state.get("ese_version", 0)  # bumped after saving a script (resets the uploader)
 
 with components.card("ese_pick"):
     c1, c2 = st.columns(2, gap="medium")
-    subject = c1.selectbox("Subject", subjects, key=f"ese_subject_{dv}",
+    subject = c1.selectbox("Subject", subjects, key=f"ese_subject_{data_version}",
                            format_func=lambda s: f'{s["code"]} {s["name"]}')
     sid = subject["id"]
     names = {s["roll_no"]: s["name"] for s in db.list_subject_enrollments(sid)}
@@ -40,14 +40,16 @@ with components.card("ese_pick"):
         st.info("No students are enrolled and no ESE marks exist for this subject yet.")
         st.stop()
 
+    ese_max = config.COMPONENTS["ESE"]
+
     def _label(r: str) -> str:
         score = ese.get(r)
-        return (f'{r} · {names.get(r, "Not enrolled")} · '
-                f'{"ESE not entered" if score is None else f"ESE {score:g}/100"}')
+        mark = "ESE not entered" if score is None else f"ESE {score:g}/{ese_max}"
+        return f'{r} · {names.get(r, "Not enrolled")} · {mark}'
 
-    roll = c2.selectbox("Student", rolls, key=f"ese_student_{dv}_{sid}", format_func=_label)
+    roll = c2.selectbox("Student", rolls, key=f"ese_student_{data_version}_{sid}", format_func=_label)
 
-ident = f"{dv}_{sid}_{roll}"
+ident = f"{data_version}_{sid}_{roll}"
 review = db.get_review(sid, roll) or {}
 checklist = json.loads(review.get("checklist") or "{}")
 text_key = f"ese_review_text_{ident}"
@@ -58,7 +60,7 @@ left, right = st.columns(2, gap="medium")
 
 # --- script upload ---------------------------------------------------------------
 with left, components.card("ese_script"):
-    st.markdown("### Answer script")
+    components.render(components.card_title("Answer script"))
     full = db.get_review(sid, roll, with_script=True) if review.get("script_name") else None
     has_script = bool(full and full["script"])
     if has_script:
@@ -73,12 +75,12 @@ with left, components.card("ese_script"):
     else:
         st.caption("No script uploaded yet.")
     up = st.file_uploader("Upload script (PDF or photo)", type=["pdf", "png", "jpg", "jpeg"],
-                          key=f"ese_up_{ident}_{rv}")
+                          key=f"ese_up_{ident}_{ese_version}")
     if st.button("Save script", key=f"ese_save_script_{ident}", icon=":material/save:",
                  disabled=up is None):
         db.upsert_review(sid, roll, script_name=up.name,
                          script_mime=up.type or "application/octet-stream", script=up.getvalue())
-        st.session_state["ese_version"] = rv + 1
+        st.session_state["ese_version"] = ese_version + 1
         flash(f"Saved {up.name} for {roll}.")
         st.rerun()
     gemini_key = secrets.get_gemini_key()
@@ -109,8 +111,8 @@ with left, components.card("ese_script"):
 
 # --- checklist -----------------------------------------------------------------------
 with right, components.card("ese_checklist"):
-    st.markdown("### Presentation checklist")
-    st.caption("Tick what the script does well. Each unticked item becomes a tip.")
+    components.render(components.card_title(
+        "Presentation checklist", "Tick what the script does well. Each unticked item becomes a tip."))
     cols = st.columns(2)
     for i, (key, label, _tip) in enumerate(suggestions.PRESENTATION_CHECKLIST):
         cols[i % 2].checkbox(label, value=bool(checklist.get(key)), key=f"ese_chk_{key}_{ident}")
@@ -127,10 +129,10 @@ with right, components.card("ese_checklist"):
 # --- review editor ---------------------------------------------------------------------
 published = bool(review.get("published"))
 with components.card("ese_review"):
-    head, pill_col = st.columns([4, 1], vertical_alignment="center")
-    head.markdown("### Review for the student")
-    pill_col.markdown(components.pill("Published" if published else "Draft",
-                                      "ok" if published else "stretch"), unsafe_allow_html=True)
+    components.render(components.card_title(
+        "Review for the student",
+        aside_html=components.pill("Published" if published else "Draft",
+                                   "ok" if published else "stretch")))
     text = st.text_area("Review text (markdown)", value=review.get("final_review") or "",
                         key=text_key, height=260)
     st.caption("Saving a draft takes the review off the student's page until you publish again.")
@@ -160,13 +162,11 @@ def _yes(flag: bool) -> str:
     return components.pill("Yes", "ok") if flag else components.pill("No", "not-attempted")
 
 
-rows = "".join(
-    f'<tr><td>{escape(r)}</td><td>{escape(names.get(r, "Not enrolled"))}</td>'
-    f'<td>{_yes(status.get(r, {}).get("has_script", False))}</td>'
-    f'<td>{_yes(status.get(r, {}).get("has_review", False))}</td>'
-    f'<td>{_yes(status.get(r, {}).get("published", False))}</td></tr>' for r in rolls)
+rows = [[escape(r), escape(names.get(r, "Not enrolled")),
+         _yes(status.get(r, {}).get("has_script", False)),
+         _yes(status.get(r, {}).get("has_review", False)),
+         _yes(status.get(r, {}).get("published", False))] for r in rolls]
 with components.card("ese_status"):
-    st.markdown(f"### Status · {subject['code']}")
-    components.render(
-        '<table class="gl-table"><thead><tr><th>Roll</th><th>Name</th><th>Script uploaded</th>'
-        f'<th>Review written</th><th>Published</th></tr></thead><tbody>{rows}</tbody></table>')
+    components.render(components.card_title(f"Status · {subject['code']}"))
+    components.render(components.table(
+        ["Roll", "Name", "Script uploaded", "Review written", "Published"], rows))

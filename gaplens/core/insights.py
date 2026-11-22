@@ -90,9 +90,10 @@ def class_overview(subject_id: int) -> list[dict]:
         cia = analysis.cia_percentage(scores)
         target = e["target"]
         goal = analysis.goal_status(target if target is not None else 0, scores, subject["cia_weight"])
-        status = goal.status if target is not None else "No data"
+        status = goal.status if target is not None else analysis.NO_DATA
         rows.append({"roll": roll, "name": e["name"], "target": target, "cia_pct": cia,
                      "status": status, "required_pct": goal.required_pct if target is not None else None,
                      "reasons": analysis.early_warning_reasons(
-                         cia, goal if target is not None else analysis.GoalResult("No data", 0, 0, 0, None, None, None))})
+                         cia, goal if target is not None
+                         else analysis.GoalResult(analysis.NO_DATA, 0, 0, 0, None, None, None))})
     return rows

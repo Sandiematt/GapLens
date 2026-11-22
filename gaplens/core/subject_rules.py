@@ -48,14 +48,18 @@ def validate_subject(code: str, name: str, class_name: str, cia_pct: float,
     if cia_pct is None or not 0 <= cia_pct <= 100:
         errors.append("CIA weight must be between 0 and 100.")
     if not topics:
-        errors.append("Add at least one topic.")
+        errors.append(NEED_A_TOPIC)
     for d in _duplicate_titles([t for _, t in topics]):
         errors.append(f'Topic "{d}" is listed more than once.')
     return errors
 
 
+NEED_A_TOPIC = "Add at least one topic."
+
+
 def validate_topic_rows(rows: list[dict]) -> list[str]:
-    errors = []
+    """Errors in an edited topic table; a subject needs at least one topic."""
+    errors = [] if rows else [NEED_A_TOPIC]
     for i, r in enumerate(rows, 1):
         if not str(r.get("title") or "").strip():
             errors.append(f"Row {i}: topic title is empty.")

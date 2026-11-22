@@ -1,13 +1,11 @@
 """Faculty: Papers & Marks (define CIA papers, enter question-wise and ESE marks)."""
 from __future__ import annotations
 
-from html import escape
-
 import pandas as pd
 import streamlit as st
 
 import config
-from core import db, marks_rules as mr
+from core import analysis, db, marks_rules as mr
 from ui import components, profile
 from ui.flash import flash
 
@@ -23,12 +21,12 @@ if not subjects:
     st.info("You have no subjects yet. Create one on the My Subjects page first.")
     st.stop()
 
-dv = st.session_state.get("data_version", 0)
-pv = st.session_state.get("papers_version", 0)  # bumped after every save
+data_version = st.session_state.get("data_version", 0)
+papers_version = st.session_state.get("papers_version", 0)  # bumped after every save
 
 
 def _bump() -> None:
-    st.session_state["papers_version"] = pv + 1
+    st.session_state["papers_version"] = papers_version + 1
 
 
 def _val(x):
@@ -38,17 +36,17 @@ def _val(x):
 # --- selectors ----------------------------------------------------------------
 with components.card("paper_select"):
     c1, c2, c3 = st.columns(3, gap="medium")
-    subject = c1.selectbox("Subject", subjects, key=f"pm_subject_{dv}",
+    subject = c1.selectbox("Subject", subjects, key=f"pm_subject_{data_version}",
                            format_func=lambda s: f'{s["code"]} {s["name"]}')
     component = c2.selectbox(
-        "Component", list(config.COMPONENTS), key=f"pm_component_{dv}",
+        "Component", list(config.COMPONENTS), key=f"pm_component_{data_version}",
         format_func=lambda c: f"{c} · out of {config.COMPONENTS[c]}")
     students = db.list_subject_enrollments(subject["id"])
     c3.text_input("Class", value=f'{subject["class_name"]} · {len(students)} students',
                   disabled=True)
 
 sid, total_max = subject["id"], config.COMPONENTS[component]
-ident = f"{dv}_{pv}_{sid}_{component}"
+ident = f"{data_version}_{papers_version}_{sid}_{component}"
 is_ese = component == "ESE"
 rolls = [s["roll_no"] for s in students]
 
@@ -70,9 +68,9 @@ if is_ese:
     left, right = st.columns(2, gap="medium")
     saved = {m["roll_no"]: m["score"] for m in db.list_ese_marks(sid)}
     with left, components.card("ese_file"):
-        components.render('<h3 style="margin:0 0 4px">ESE marks file</h3>'
-                          '<p class="gl-subtitle">Download the template, fill in each total out of '
-                          f'{total_max}, then upload it. Saving replaces all ESE totals.</p>')
+        components.render(components.card_title(
+            "ESE marks file", f"Download the template, fill in each total out of {total_max}, "
+                              "then upload it. Saving replaces all ESE totals."))
         _csv_button("Download CSV template", mr.ese_template_csv(rolls),
                     f'{subject["code"]}_ESE_{subject["class_name"]}.csv', f"dl_ese_{ident}")
         up = st.file_uploader("Upload ESE CSV", type="csv", key=f"up_ese_{ident}")
@@ -90,9 +88,9 @@ if is_ese:
                 st.rerun()
     with right, components.card("ese_stats"):
         scores = list(saved.values())
-        components.render('<h3 style="margin:0 0 4px">ESE totals</h3>')
+        components.render(components.card_title("ESE totals"))
         if scores:
-            fails = sum(s < config.ESE_PASS_MARK for s in scores)
+            fails = sum(not analysis.passed_ese(s) for s in scores)
             components.render(
                 components.pill(f"{len(scores)} entered", "gold")
                 + components.pill(f"{fails} below {config.ESE_PASS_MARK}", "at-risk" if fails else "ok")
@@ -100,7 +98,7 @@ if is_ese:
         else:
             st.caption("No ESE totals entered yet.")
     with components.card("ese_grid"):
-        components.render('<h3 style="margin:0 0 4px">Review and edit ESE totals</h3>')
+        components.render(components.card_title("Review and edit ESE totals"))
         names = {s["roll_no"]: s["name"] for s in students}
         order = rolls + sorted(set(saved) - set(rolls))
         base = pd.DataFrame({
@@ -137,7 +135,8 @@ for t in topics:
 left, right = st.columns(2, gap="medium")
 
 with left, components.card("paper_editor"):
-    components.render('<h3 style="margin:0 0 4px">Question paper</h3>')
+    components.render(components.card_title(
+        "Question paper", f"One row per question. Maximum marks should add up to {total_max}."))
     base = pd.DataFrame(
         [{"q_no": q["q_no"], "max_marks": q["max_marks"], "topic": topic_title.get(q["topic_id"])}
          for q in questions], columns=["q_no", "max_marks", "topic"]
@@ -173,10 +172,10 @@ with left, components.card("paper_editor"):
             st.rerun()
 
 with right, components.card("marks_file"):
-    components.render('<h3 style="margin:0 0 4px">Marks file</h3>'
-                      '<p class="gl-subtitle">Download the template with every roll number and a '
-                      'column per question, fill it in, then upload it. Saving replaces all marks '
-                      'for this paper. A blank cell means not attempted.</p>')
+    components.render(components.card_title(
+        "Marks file", "Download the template with every roll number and a column per question, "
+                      "fill it in, then upload it. Saving replaces all marks for this paper. "
+                      "A blank cell means not attempted."))
     if not questions:
         st.info("Save the question paper first, then marks can be entered.")
     else:
@@ -199,10 +198,10 @@ with right, components.card("marks_file"):
 
 if questions:
     with components.card("marks_grid"):
-        components.render('<h3 style="margin:0 0 4px">Review and edit marks</h3>'
-                          '<p class="gl-subtitle">Leave a cell empty for not attempted. Rows empty in '
-                          'every cell are not saved. Roll numbers outside the class stay as '
-                          'anonymous rows.</p>')
+        components.render(components.card_title(
+            "Review and edit marks", "Leave a cell empty for not attempted. Rows empty in every "
+                                     "cell are not saved. Roll numbers outside the class stay as "
+                                     "anonymous rows."))
         grid = mr.marks_grid(students, questions, db.list_marks(sid, component))
         cols = [mr.qcol(q["q_no"]) for q in questions]
         base = pd.DataFrame(grid, columns=["roll_no", "name", *cols])
