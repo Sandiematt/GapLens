@@ -217,3 +217,40 @@ def reset_demo() -> None:
     """Wipe everything and restore the seeded state."""
     db.reset_db()
     seed_all()
+
+
+# --- verified resources (SAN-125) ---------------------------------------------
+# (topic, title, link, type, difficulty, duration); stable pages only.
+VERIFIED_RESOURCES = {
+    "MCA231": [
+        ("Recursion", "VisuAlgo: recursion tree visualiser", "https://visualgo.net/en/recursion",
+         "reading", "beginner", "20 min"),
+        ("Linked lists", "VisuAlgo: linked list, stack and queue", "https://visualgo.net/en/list",
+         "reading", "beginner", "25 min"),
+        ("Binary search trees", "VisuAlgo: binary search tree", "https://visualgo.net/en/bst",
+         "reading", "intermediate", "30 min"),
+        ("Sorting", "VisuAlgo: sorting algorithms", "https://visualgo.net/en/sorting",
+         "reading", "beginner", "30 min"),
+    ],
+    "MCA232": [
+        ("Functions", "Python tutorial: defining functions",
+         "https://docs.python.org/3/tutorial/controlflow.html#defining-functions",
+         "reading", "beginner", "20 min"),
+        ("Exception handling", "Python tutorial: errors and exceptions",
+         "https://docs.python.org/3/tutorial/errors.html", "reading", "beginner", "25 min"),
+        ("Classes and objects", "Python tutorial: classes",
+         "https://docs.python.org/3/tutorial/classes.html", "reading", "intermediate", "40 min"),
+        ("File handling", "Python tutorial: reading and writing files",
+         "https://docs.python.org/3/tutorial/inputoutput.html#reading-and-writing-files",
+         "reading", "beginner", "15 min"),
+    ],
+}
+
+
+@seed_step
+def seed_resources(conn, ctx: dict) -> None:
+    for code, items in VERIFIED_RESOURCES.items():
+        sid = ctx["subject_ids"][code]
+        topic_ids = {t["title"]: t["id"] for t in db.list_topics(sid, conn=conn)}
+        for topic, title, link, rtype, diff, dur in items:
+            db.add_resource(sid, topic_ids[topic], title, link, rtype, diff, dur, conn=conn)

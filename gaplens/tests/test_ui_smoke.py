@@ -169,7 +169,7 @@ def test_dashboard_demo_student_python_shows_required_pct(tmp_db):
     text = _text(at)
     assert "You need an average of" in text and "CIA-3 and ESE" in text
     assert "Welcome back, Demo Student" in text
-    assert len(at.tabs) == 5
+    assert {"Goal", "CIA Analysis", "Weak Topics & Resources", "Progress", "ESE"} <= {t.label for t in at.tabs}
 
 
 def test_dashboard_demo_student_data_structures_shows_final(tmp_db):

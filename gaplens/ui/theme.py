@@ -42,6 +42,7 @@ PILLS = {
     "silly-loss": ("#F9E3DC", "#9F4A3C"),
     "time-pressure": ("#FFF4DE", "#B45309"),
     "gold": ("#FEF3C7", "#92400E"),
+    "muted": ("#F1F1F4", "#4B5563"),
 }
 
 CSS = f"""
@@ -213,6 +214,25 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 [class*="st-key-tip_not-attempted"] {{ border-top-color:#4B5563 !important; }}
 [class*="st-key-tip_"] [data-testid="stCheckbox"] {{ border-top:1px solid #EFE6D2; padding-top:10px; }}
 [class*="st-key-tip_"] [data-testid="stCheckbox"] p {{ font-size:13px; }}
+.gl-rank {{ display:flex; gap:12px; align-items:center; }}
+.gl-rank-n {{ width:40px; height:40px; border-radius:999px; background:#FEE2E2; color:#B91C1C; display:flex;
+  align-items:center; justify-content:center; font-weight:700; font-size:15px; }}
+.gl-rank-title {{ font-size:18px; font-weight:700; color:var(--text); }}
+.gl-rank-lost {{ font-size:14px; color:var(--text); margin:14px 0 8px; font-variant-numeric:tabular-nums; }}
+.gl-bar {{ height:10px; border-radius:999px; background:#F1F1F4; overflow:hidden; }}
+.gl-bar > div {{ height:100%; border-radius:999px; }}
+.gl-eyebrow2 {{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--text2); margin:14px 0 8px; }}
+.gl-res {{ display:flex; align-items:center; gap:12px; border:1px solid var(--border); border-radius:14px;
+  padding:12px 14px; margin-bottom:10px; background:#fff; text-decoration:none !important; }}
+.gl-res.gl-auto {{ background:var(--muted); border-color:transparent; }}
+.gl-res-title {{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:6px; }}
+.gl-res-meta {{ display:flex; gap:6px; flex-wrap:wrap; }}
+.gl-res-meta .gl-pill {{ font-size:12px; padding:2px 10px; }}
+.gl-res-go {{ margin-left:auto; color:var(--gold-800); font-size:16px; }}
+.gl-res-body {{ flex:1; min-width:0; }}
+.gl-rule-note {{ background:#FBF4E8; border:1px solid var(--border); border-radius:14px; padding:12px 14px;
+  font-size:13px; color:var(--gold-800); margin:8px 0 14px; }}
 .gl-section-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
   flex-wrap:wrap; margin:22px 0 10px; }}
 .gl-section-head .gl-section-title {{ font-size:18px; font-weight:700; color:var(--text); letter-spacing:-0.02em; }}

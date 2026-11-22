@@ -470,3 +470,41 @@ def count_silly_flags(subject_id: int, component: str) -> list[dict]:
             "FROM questions q LEFT JOIN silly_flags f ON f.question_id = q.id "
             "WHERE q.subject_id = ? AND q.component = ? GROUP BY q.id ORDER BY q.q_no",
             (subject_id, component)))
+
+
+# --- resources (SAN-125) --------------------------------------------------------
+register_table("""CREATE TABLE IF NOT EXISTS resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    rtype TEXT NOT NULL CHECK (rtype IN ('video','reading','practice','course')),
+    difficulty TEXT NOT NULL CHECK (difficulty IN ('beginner','intermediate','advanced')),
+    duration TEXT NOT NULL DEFAULT ''
+)""")
+
+
+def add_resource(subject_id: int, topic_id: int, title: str, link: str, rtype: str,
+                 difficulty: str, duration: str = "", conn=None) -> int:
+    with _session(conn) as c:
+        cur = c.execute(
+            "INSERT INTO resources (subject_id, topic_id, title, link, rtype, difficulty, duration)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (subject_id, topic_id, title.strip(), link.strip(), rtype, difficulty,
+             (duration or "").strip()))
+        return cur.lastrowid
+
+
+def list_resources(subject_id: int, topic_id: int | None = None) -> list[dict]:
+    sql, args = "SELECT * FROM resources WHERE subject_id = ?", [subject_id]
+    if topic_id is not None:
+        sql += " AND topic_id = ?"
+        args.append(topic_id)
+    with _session() as c:
+        return _rows(c.execute(sql + " ORDER BY topic_id, id", args))
+
+
+def delete_resource(resource_id: int) -> None:
+    with _session() as c:
+        c.execute("DELETE FROM resources WHERE id = ?", (resource_id,))

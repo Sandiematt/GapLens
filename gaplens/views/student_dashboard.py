@@ -10,6 +10,7 @@ import streamlit as st
 import config
 from core import analysis, db, insights, suggestions
 from ui import components, plotly_theme, profile
+from ui.weak_topics import render_weak_topics
 
 student = profile.current_student()
 subject = profile.current_subject(student)
@@ -33,8 +34,7 @@ components.render(components.page_header(
 tab_goal, tab_cia, tab_weak, tab_progress, tab_ese = st.tabs(
     ["Goal", "CIA Analysis", "Weak Topics & Resources", "Progress", "ESE"])
 
-for tab, name, ticket in [(tab_weak, "Weak Topics & Resources", "SAN-125"),
-                          (tab_ese, "ESE", "SAN-127")]:
+for tab, name, ticket in [(tab_ese, "ESE", "SAN-127")]:
     with tab:
         components.render(components.coming_soon(f"{name}: coming in {ticket}",
                                                  "This tab arrives in a later ticket."))
@@ -325,5 +325,10 @@ with tab_goal:
     render_goal()
 with tab_cia:
     render_cia(analyses)
+with tab_weak:
+    components.render(components.page_header(
+        'Weak topics & resources',
+        f"{subject['code']} {subject['name']} · ranked by marks lost across your CIAs."))
+    render_weak_topics(subject, insights.weak_topic_rows(subject['id'], analyses))
 with tab_progress:
     render_progress(analyses)

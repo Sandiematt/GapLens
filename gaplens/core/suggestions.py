@@ -7,6 +7,9 @@ the topper's score and the class average.
 from __future__ import annotations
 
 import math
+from urllib.parse import quote_plus
+
+import config
 
 
 def _num(x) -> float | None:
@@ -81,3 +84,53 @@ def question_tip(row) -> str | None:
                 "answers add a definition, a worked example and a labelled diagram.")
     return (f"{facts} You matched the top score on {topic}, {_marks(mx - score)} short of full: "
             "add a definition, a worked example and a labelled diagram to close it.")
+
+
+# --- resources (SAN-125) ---------------------------------------------------------
+RESOURCE_TYPES = ("video", "reading", "practice", "course")
+DIFFICULTIES = ("beginner", "intermediate", "advanced")
+_BIG_GAP_ORDER = ("video", "reading", "course", "practice")
+_SMALL_GAP_ORDER = ("practice", "video", "reading", "course")
+
+
+def search_links(subject_name: str, topic: str) -> list[dict]:
+    """Auto-suggested search pages (never invented direct URLs), URL-encoded."""
+    base = f"{subject_name} {topic}".strip()
+    yt = quote_plus(base)
+    nptel = quote_plus(f"site:nptel.ac.in {base}")
+    prac = quote_plus(f"{base} practice problems")
+    return [
+        {"kind": "youtube", "title": f"YouTube: {topic}",
+         "url": f"https://www.youtube.com/results?search_query={yt}"},
+        {"kind": "nptel", "title": f"NPTEL: {topic}",
+         "url": f"https://www.google.com/search?q={nptel}"},
+        {"kind": "practice", "title": f"Practice: {topic} problems",
+         "url": f"https://www.google.com/search?q={prac}"},
+    ]
+
+
+def order_resources(resources: list[dict], lost_pct: float) -> list[dict]:
+    """Big gap: video, reading, course, practice. Small gap: practice first.
+    Within a type, beginner then intermediate then advanced."""
+    order = _BIG_GAP_ORDER if lost_pct >= config.BIG_GAP_PCT else _SMALL_GAP_ORDER
+
+    def key(r):
+        t, d = r.get("rtype"), r.get("difficulty")
+        return (order.index(t) if t in order else len(order),
+                DIFFICULTIES.index(d) if d in DIFFICULTIES else len(DIFFICULTIES))
+    return sorted(resources, key=key)  # stable
+
+
+def validate_resource(title, link, topic_id, rtype="video", difficulty="beginner") -> list[str]:
+    errors = []
+    if topic_id is None:
+        errors.append("Pick a topic.")
+    if not (title or "").strip():
+        errors.append("Title is required.")
+    if not (link or "").strip().lower().startswith(("http://", "https://")):
+        errors.append("Link must start with http:// or https://.")
+    if rtype not in RESOURCE_TYPES:
+        errors.append("Pick a valid type.")
+    if difficulty not in DIFFICULTIES:
+        errors.append("Pick a valid difficulty.")
+    return errors

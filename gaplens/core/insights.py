@@ -49,3 +49,21 @@ def student_paper_analyses(subject_id: int, roll_no: str,
         if a is not None:
             result[comp] = a
     return result
+
+
+def weak_topic_rows(subject_id: int, analyses: dict[str, analysis.PaperAnalysis],
+                    top_n: int | None = None) -> list[dict]:
+    """Topics with marks lost (most first), each with its verified resources ordered for the gap."""
+    from core import suggestions  # local: keeps module imports light
+    losses = analysis.topic_losses([a.table for a in analyses.values()])
+    losses = losses[losses["lost"] > 0]
+    if top_n is not None:
+        losses = losses.head(top_n)
+    by_topic: dict[int, list[dict]] = {}
+    for r in db.list_resources(subject_id):
+        by_topic.setdefault(r["topic_id"], []).append(r)
+    rows = []
+    for rec in losses.to_dict("records"):
+        rows.append({**rec, "resources": suggestions.order_resources(
+            by_topic.get(int(rec["topic_id"]), []), rec["lost_pct"])})
+    return rows

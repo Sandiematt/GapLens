@@ -179,3 +179,37 @@ def progress_chip(topic: str, first: float, last: float) -> str:
     bg, fg = theme.PILLS[kind]
     return (f'<span class="gl-pill" style="background:{bg};color:{fg}">{arrow}'
             f'{escape(topic)}: {first:.0f}% → {last:.0f}%</span>')
+
+
+# --- resources (SAN-125) ---------------------------------------------------------
+RTYPE_ICON = {"video": "&#9654;", "reading": "&#128214;", "practice": "&#9998;",
+              "course": "&#127891;"}
+SEARCH_ICON = {"youtube": "&#9654;", "nptel": "&#128269;", "practice": "&#9998;"}
+
+
+def resource_card(res: dict, verified: bool = True) -> str:
+    """One resource row (a link). Verified rows need rtype, difficulty, duration."""
+    href = escape(res.get("link") or res.get("url") or "", quote=True)
+    if verified:
+        icon = RTYPE_ICON.get(res["rtype"], "&#128279;")
+        meta = (pill("Verified", "ok") + pill(res["rtype"].capitalize(), "muted")
+                + pill(res["difficulty"].capitalize(), "muted"))
+        if res.get("duration"):
+            meta += pill(res["duration"], "muted")
+        cls = "gl-res"
+    else:
+        icon = SEARCH_ICON.get(res.get("kind"), "&#128269;")
+        meta = pill("Auto-suggested", "muted")
+        cls = "gl-res gl-auto"
+    return _h(f'<a class="{cls}" href="{href}" target="_blank" rel="noopener noreferrer">'
+              f'<span style="font-size:18px">{icon}</span><div class="gl-res-body">'
+              f'<div class="gl-res-title">{escape(res["title"])}</div>'
+              f'<div class="gl-res-meta">{meta}</div></div><span class="gl-res-go">&#8599;</span></a>')
+
+
+def weak_topic_header(rank: int, title: str, lost: float, mx: float, pct: float) -> str:
+    color = "#DC2626" if pct >= 50 else "#F59E0B"
+    return _h(f'<div class="gl-rank"><div class="gl-rank-n">#{rank}</div>'
+              f'<div class="gl-rank-title">{escape(title)}</div></div>'
+              f'<div class="gl-rank-lost">Lost {num(lost)} of {num(mx)} marks ({pct:.0f}%)</div>'
+              f'<div class="gl-bar"><div style="width:{min(100, pct):.0f}%;background:{color}"></div></div>')
