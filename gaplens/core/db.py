@@ -240,6 +240,53 @@ def list_topics(subject_id: int) -> list[dict]:
             "SELECT * FROM topics WHERE subject_id = ? ORDER BY unit_no, id", (subject_id,)))
 
 
+def create_subject_with_topics(faculty_id: int, code: str, name: str, class_name: str,
+                               cia_weight: float, topics: list[tuple[int, str]]) -> int:
+    """Create a subject and its topics in one transaction (all or nothing)."""
+    with _session() as c:
+        subject_id = add_subject(faculty_id, code, name, class_name, cia_weight, conn=c)
+        for unit_no, title in topics:
+            add_topic(subject_id, unit_no, title, conn=c)
+        return subject_id
+
+
+def update_topics(subject_id: int, rows: list[dict]) -> None:
+    """Make the subject's topics match ``rows`` (dicts with id/unit_no/title).
+
+    Rows with an id of this subject are renamed, rows without one are added,
+    and existing topics missing from ``rows`` are deleted. Questions pointing
+    at a deleted topic are untagged by the ``ON DELETE SET NULL`` foreign key
+    on ``questions.topic_id`` (SAN-122 must declare it that way).
+    """
+    with _session() as c:
+        existing = {r[0] for r in c.execute(
+            "SELECT id FROM topics WHERE subject_id = ?", (subject_id,))}
+        keep = set()
+        for r in rows:
+            title = str(r["title"]).strip()
+            if not title:
+                raise ValueError("Topic title is required.")
+            tid = r.get("id")
+            if tid is not None and int(tid) in existing:
+                keep.add(int(tid))
+                c.execute("UPDATE topics SET unit_no = ?, title = ? WHERE id = ?",
+                          (int(r["unit_no"]), title, int(tid)))
+            else:
+                add_topic(subject_id, int(r["unit_no"]), title, conn=c)
+        for tid in existing - keep:
+            c.execute("DELETE FROM topics WHERE id = ?", (tid,))
+
+
+def list_subject_summaries(faculty_id: int) -> list[dict]:
+    """A faculty member's own subjects with enrolled-student and topic counts."""
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT s.*, "
+            "(SELECT COUNT(*) FROM enrollments e WHERE e.subject_id = s.id) AS student_count, "
+            "(SELECT COUNT(*) FROM topics t WHERE t.subject_id = s.id) AS topic_count "
+            "FROM subjects s WHERE s.faculty_id = ? ORDER BY s.code", (faculty_id,)))
+
+
 # --- enrollments ------------------------------------------------------------
 def _check_target(target: float | None) -> float | None:
     if target is None:

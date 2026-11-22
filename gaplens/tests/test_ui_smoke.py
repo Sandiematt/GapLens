@@ -76,3 +76,45 @@ def test_faculty_reset_flow(app):
     app.button(key="reset_yes").click().run()
     assert not app.exception
     assert db.get_enrollment(db.get_student_by_roll("25MCA007")["id"], sid)["target"] == 80
+
+
+def _faculty_app(app):
+    app.session_state["active_role"] = "Faculty"
+    app.run()
+    assert not app.exception
+    return app
+
+
+def test_faculty_creates_subject_and_students_see_it(app):
+    _faculty_app(app)
+    app.text_input[0].set_value("mca240")
+    app.text_input[1].set_value("Networks")
+    app.text_area[0].set_value("1 | OSI\nRouting\n2 | Transport")
+    app.get("form_submit_button")[0].click().run()
+    assert not app.exception and not app.error
+    subj = [s for s in db.list_subjects(class_name="MCA-A") if s["code"] == "MCA240"][0]
+    assert [(t["unit_no"], t["title"]) for t in db.list_topics(subj["id"])] == [
+        (1, "OSI"), (1, "Routing"), (2, "Transport")]
+    student = AppTest.from_file(APP, default_timeout=30)
+    student.run()
+    assert "Networks" in " ".join(m.value for m in student.markdown)
+
+
+def test_faculty_create_validation_and_duplicate_errors(app):
+    _faculty_app(app)
+    app.get("form_submit_button")[0].click().run()
+    assert len(app.error) >= 3
+    app.text_input[0].set_value("MCA231")
+    app.text_input[1].set_value("Dup")
+    app.text_area[0].set_value("x")
+    app.get("form_submit_button")[0].click().run()
+    assert any("already exists" in e.value for e in app.error)
+    assert len(db.list_subjects()) == 2
+
+
+def test_faculty_sees_only_own_subjects(app):
+    other = db.add_faculty("Someone Else")
+    db.create_subject_with_topics(other, "ZZ1", "Hidden", "MCA-A", 0.5, [(1, "t")])
+    _faculty_app(app)
+    text = " ".join(m.value for m in app.markdown)
+    assert "Data Structures" in text and "Hidden" not in text
