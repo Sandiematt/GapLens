@@ -205,3 +205,80 @@ def test_dashboard_not_enrolled(tmp_db):
     sid = db.add_student("25MCA097", "Fresh", "MCA-A")
     at = _dashboard(student_id=sid)
     assert not at.exception and any("My Subjects" in i.value for i in at.info)
+
+
+# --- CIA Analysis and Progress tabs (SAN-124) ----------------------------------
+def _subject(code):
+    return [s for s in db.list_subjects() if s["code"] == code][0]["id"]
+
+
+def test_cia_and_progress_tabs_data_structures(tmp_db):
+    seed.ensure_seeded()
+    ds = _subject("MCA231")
+    at = _dashboard(subject_id=ds)
+    assert not at.exception
+    text = _text(at)
+    assert "CIA paper analysis" in text and "Class topper" in text
+    assert "Silly loss" in text and "Concept gap" in text  # CIA-1 is shown first
+    assert "Are your weak topics improving?" in text
+    assert "Recursion: 13% → 70%" in text
+    for comp in ("CIA-2", "CIA-3"):
+        at.segmented_control(key=f"cia_paper_{ds}").set_value(comp).run()
+        assert not at.exception, comp
+
+
+def test_cia_and_progress_tabs_python(tmp_db):
+    seed.ensure_seeded()
+    py = _subject("MCA232")
+    at = _dashboard(subject_id=py)
+    assert not at.exception
+    assert "Time pressure on the last 2 questions" in _text(at)
+    assert at.segmented_control(key=f"cia_paper_{py}").options == ["CIA-1", "CIA-2"]
+    at.segmented_control(key=f"cia_paper_{py}").set_value("CIA-2").run()
+    assert not at.exception and "Not attempted" in _text(at)
+    assert "Functions: 40% → 100%" in _text(at)
+
+
+def test_ticking_a_silly_slip_saves_and_reclassifies(tmp_db):
+    seed.ensure_seeded()
+    ds, sid = _subject("MCA231"), db.get_student_by_roll("25MCA007")["id"]
+    q1 = db.list_questions(ds, "CIA-1")[0]["id"]  # the demo silly loss
+    at = _dashboard(subject_id=ds)
+    box = at.checkbox(key=f"flag_{sid}_{q1}_0")
+    assert box.value is False
+    box.check().run()
+    assert not at.exception
+    assert db.get_silly_flags(sid, ds) == {q1}
+    assert "Silly error flagged" in _text(at)
+    at.checkbox(key=f"flag_{sid}_{q1}_0").uncheck().run()
+    assert not at.exception and db.get_silly_flags(sid, ds) == set()
+
+
+def test_flag_saved_in_db_shows_on_the_page(tmp_db):
+    seed.ensure_seeded()
+    ds, sid = _subject("MCA231"), db.get_student_by_roll("25MCA007")["id"]
+    q3 = db.list_questions(ds, "CIA-1")[2]["id"]  # the demo concept gap
+    db.set_silly_flag(sid, q3)
+    at = _dashboard(subject_id=ds)
+    assert not at.exception
+    assert at.checkbox(key=f"flag_{sid}_{q3}_0").value is True
+    assert "Silly error flagged" in _text(at)
+
+
+def test_progress_needs_two_papers(tmp_db):
+    seed.ensure_seeded()
+    py = _subject("MCA232")
+    db.save_marks(py, "CIA-2", [])  # only CIA-1 has marks now
+    at = _dashboard(subject_id=py)
+    assert not at.exception
+    assert "Progress appears after two papers" in _text(at)
+
+
+def test_new_student_sees_empty_cia_and_progress(tmp_db):
+    seed.ensure_seeded()
+    sid = db.add_student("25MCA096", "Empty", "MCA-A")
+    db.enroll(sid, db.list_subjects()[0]["id"], 70)
+    at = _dashboard(student_id=sid)
+    assert not at.exception
+    text = _text(at)
+    assert "No CIA marks yet" in text and "No progress to show yet" in text

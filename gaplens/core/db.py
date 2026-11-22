@@ -431,3 +431,42 @@ def save_ese_marks(subject_id: int, records: list[tuple[str, float]], conn=None)
         c.execute("DELETE FROM ese_marks WHERE subject_id = ?", (subject_id,))
         c.executemany("INSERT INTO ese_marks (subject_id, roll_no, score) VALUES (?, ?, ?)",
                       [(subject_id, r, s) for r, s in records])
+
+
+# --- silly-error flags (SAN-124) --------------------------------------------
+register_table("""CREATE TABLE IF NOT EXISTS silly_flags (
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+        PRIMARY KEY (student_id, question_id)
+    )""")
+
+
+def set_silly_flag(student_id: int, question_id: int, conn=None) -> None:
+    """Flag a question as a calculation/silly slip for a student (idempotent)."""
+    with _session(conn) as c:
+        c.execute("INSERT OR IGNORE INTO silly_flags (student_id, question_id) VALUES (?, ?)",
+                  (student_id, question_id))
+
+
+def clear_silly_flag(student_id: int, question_id: int, conn=None) -> None:
+    with _session(conn) as c:
+        c.execute("DELETE FROM silly_flags WHERE student_id = ? AND question_id = ?",
+                  (student_id, question_id))
+
+
+def get_silly_flags(student_id: int, subject_id: int) -> set[int]:
+    """Question ids the student flagged in this subject (every component)."""
+    with _session() as c:
+        return {r[0] for r in c.execute(
+            "SELECT f.question_id FROM silly_flags f JOIN questions q ON q.id = f.question_id "
+            "WHERE f.student_id = ? AND q.subject_id = ?", (student_id, subject_id))}
+
+
+def count_silly_flags(subject_id: int, component: str) -> list[dict]:
+    """[{question_id, q_no, flags}] for every question of a paper, in q_no order."""
+    with _session() as c:
+        return _rows(c.execute(
+            "SELECT q.id AS question_id, q.q_no, COUNT(f.student_id) AS flags "
+            "FROM questions q LEFT JOIN silly_flags f ON f.question_id = q.id "
+            "WHERE q.subject_id = ? AND q.component = ? GROUP BY q.id ORDER BY q.q_no",
+            (subject_id, component)))

@@ -68,3 +68,60 @@ def goal_figure(scored: dict[str, float], pending: list[str], required: float | 
     fig.update_yaxes(range=[0, 115], ticksuffix="%", title=None)
     fig.update_layout(bargap=0.45, height=340, showlegend=True)
     return style_figure(fig)
+
+
+# --- CIA analysis and progress (SAN-124) ----------------------------------------
+OK_LOSS = "#F7E7CE"  # champagne: marks lost on questions marked OK
+
+
+def question_compare_figure(labels: list[str], you: list[float], topper: list[float],
+                            class_avg: list[float]) -> go.Figure:
+    """Grouped bars: % of each question's max for you, the topper and the class."""
+    fig = go.Figure()
+    for name, ys, colour in (("You", you, YOU), ("Topper", topper, TOPPER),
+                             ("Class avg", class_avg, CLASS_AVG)):
+        fig.add_bar(x=labels, y=ys, name=name, marker_color=colour,
+                    hovertemplate=f"{name} · %{{x}}: %{{y:.0f}}%<extra></extra>")
+    fig.update_yaxes(range=[0, 105], ticksuffix="%", title=None)
+    fig.update_xaxes(categoryorder="array", categoryarray=labels)
+    fig.update_layout(barmode="group", bargap=0.3, bargroupgap=0.08, height=300,
+                      legend=dict(orientation="h", y=1.12, x=1, xanchor="right"))
+    return style_figure(fig)
+
+
+def mistake_donut_figure(lost: dict[str, float]) -> go.Figure:
+    """Donut of marks lost by mistake type; the centre shows the total lost."""
+    keys = [k for k, v in lost.items() if v > 0]
+    values = [lost[k] for k in keys]
+    colours = [MISTAKE.get(k, OK_LOSS) for k in keys]
+    labels = [f"{k} · {v:g}" for k, v in zip(keys, values)]  # legend shows the marks
+    fig = go.Figure(go.Pie(labels=labels, values=values, hole=0.62, sort=False,
+                           marker=dict(colors=colours, line=dict(color="#FFFFFF", width=2)),
+                           textinfo="none", hovertemplate="%{label} marks<extra></extra>"))
+    total = sum(values)
+    fig.add_annotation(text=f"<b>{total:g}</b><br><span style='font-size:12px'>lost</span>",
+                       showarrow=False, font=dict(size=22, color=TEXT))
+    fig.update_layout(height=330, showlegend=True,
+                      legend=dict(orientation="h", y=-0.05, x=0.5, xanchor="center", yanchor="top"),
+                      margin=dict(l=8, r=8, t=8, b=8))
+    return style_figure(fig)
+
+
+def topic_progress_figure(rows, components: list[str]) -> go.Figure:
+    """One line per topic across papers. ``rows``: DataFrame of component, topic, pct."""
+    fig = go.Figure()
+    # Invisible anchor so every paper keeps its slot, in order, even before it has marks.
+    fig.add_scatter(x=list(components), y=[None] * len(components), mode="markers",
+                    showlegend=False, hoverinfo="skip", marker=dict(opacity=0))
+    for i, (topic, g) in enumerate(rows.groupby("topic", sort=False)):
+        colour = TOPIC_LINES[i % len(TOPIC_LINES)]
+        g = g.set_index("component").reindex([c for c in components if c in set(g["component"])])
+        fig.add_scatter(x=list(g.index), y=list(g["pct"]), name=topic, mode="lines+markers",
+                        line=dict(color=colour, width=3),
+                        marker=dict(size=10, color="#FFFFFF", line=dict(color=colour, width=3)),
+                        hovertemplate=f"{topic} · %{{x}}: %{{y:.0f}}%<extra></extra>")
+    fig.update_xaxes(categoryorder="array", categoryarray=list(components), type="category",
+                     range=[-0.3, len(components) - 0.7])
+    fig.update_yaxes(range=[0, 105], ticksuffix="%", title=None)
+    fig.update_layout(height=340, legend=dict(orientation="v", x=1.02, y=1))
+    return style_figure(fig)

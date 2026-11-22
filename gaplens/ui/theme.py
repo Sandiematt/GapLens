@@ -178,6 +178,45 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.02em; }}
 [data-testid="stFileUploaderDropzone"] {{ border:2px dashed #B7791F; background:var(--muted); border-radius:14px; }}
 [data-testid="stExpander"] {{ border:1px solid var(--border); border-radius:14px; background:#fff; }}
 [data-testid="stAlert"] {{ border-radius:14px; }}
+/* CIA analysis (SAN-124) */
+.gl-tile {{ display:flex; align-items:center; gap:12px; border-radius:14px; padding:14px 16px; }}
+.gl-tile-icon {{ width:38px; height:38px; border-radius:999px; background:#fff; display:flex;
+  align-items:center; justify-content:center; font-size:17px; font-weight:700; flex-shrink:0; }}
+.gl-tile-label {{ font-size:12px; color:var(--text2); font-weight:600; }}
+.gl-tile-value {{ font-size:22px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; line-height:1.2; }}
+.gl-tile-unit {{ font-size:13px; font-weight:500; color:var(--text2); margin-left:4px; }}
+.gl-tile > div:last-child {{ min-width:0; }}
+.gl-tile-label, .gl-tile-value {{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+@media (max-width:1200px) {{ .gl-tile-icon {{ display:none; }} .gl-tile {{ padding:12px; }} }}
+.gl-warn {{ display:flex; gap:12px; align-items:flex-start; background:#FFF4DE; border:1px solid #F4A300;
+  border-radius:14px; padding:14px 16px; font-size:13px; color:var(--text); margin:14px 0 4px; }}
+.gl-warn-icon {{ color:{GOLD[700]}; font-size:18px; line-height:1.2; }}
+.gl-warn-title {{ font-weight:700; color:{GOLD[700]}; font-size:14px; margin-bottom:2px; }}
+.gl-table-wrap {{ border:1px solid var(--border); border-radius:14px; overflow-x:auto; margin:14px 0 6px; }}
+.gl-table {{ width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }}
+.gl-table th {{ background:var(--muted); color:var(--text2); font-size:12px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.04em; text-align:left; padding:10px 14px; border:none; }}
+.gl-table td {{ padding:10px 14px; border:none; border-top:1px solid #EFE6D2; color:var(--text); }}
+.gl-table .gl-q {{ font-weight:700; }}
+.gl-table .gl-muted {{ color:var(--text2); }}
+.gl-table .gl-you {{ font-weight:700; color:{GOLD[800]}; }}
+.gl-table .gl-pill {{ font-size:12px; padding:3px 10px; }}
+.gl-gain {{ font-size:12px; font-weight:700; color:#15803D; }}
+.gl-tip-title {{ font-size:15px; font-weight:700; color:var(--text); margin:10px 0 6px; }}
+.gl-tip-text {{ font-size:13px; color:var(--text2); line-height:1.5; margin:0 0 8px; }}
+[class*="st-key-tip_"] {{ background:var(--card); border:none !important; border-radius:20px;
+  box-shadow:var(--shadow); border-top:4px solid #F7E7CE !important; }}
+[class*="st-key-tip_concept-gap"] {{ border-top-color:#DC2626 !important; }}
+[class*="st-key-tip_time-pressure"] {{ border-top-color:#F59E0B !important; }}
+[class*="st-key-tip_silly-loss"] {{ border-top-color:#D9826B !important; }}
+[class*="st-key-tip_silly-flagged"] {{ border-top-color:#A16207 !important; }}
+[class*="st-key-tip_not-attempted"] {{ border-top-color:#4B5563 !important; }}
+[class*="st-key-tip_"] [data-testid="stCheckbox"] {{ border-top:1px solid #EFE6D2; padding-top:10px; }}
+[class*="st-key-tip_"] [data-testid="stCheckbox"] p {{ font-size:13px; }}
+.gl-section-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  flex-wrap:wrap; margin:22px 0 10px; }}
+.gl-section-head .gl-section-title {{ font-size:18px; font-weight:700; color:var(--text); letter-spacing:-0.02em; }}
+.gl-section-head span {{ font-size:12px; color:var(--text2); }}
 """
 
 

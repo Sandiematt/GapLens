@@ -1,13 +1,14 @@
-"""Student: Subject Dashboard (Goal tab built; other tabs are placeholders)."""
+"""Student: Subject Dashboard (Goal, CIA Analysis and Progress built; others are placeholders)."""
 from __future__ import annotations
 
+import math
 from html import escape
 
 import pandas as pd
 import streamlit as st
 
 import config
-from core import analysis, insights
+from core import analysis, db, insights, suggestions
 from ui import components, plotly_theme, profile
 
 student = profile.current_student()
@@ -32,9 +33,8 @@ components.render(components.page_header(
 tab_goal, tab_cia, tab_weak, tab_progress, tab_ese = st.tabs(
     ["Goal", "CIA Analysis", "Weak Topics & Resources", "Progress", "ESE"])
 
-for tab, name, ticket in [(tab_cia, "CIA Analysis", "SAN-124"),
-                          (tab_weak, "Weak Topics & Resources", "SAN-125"),
-                          (tab_progress, "Progress", "SAN-124"), (tab_ese, "ESE", "SAN-127")]:
+for tab, name, ticket in [(tab_weak, "Weak Topics & Resources", "SAN-125"),
+                          (tab_ese, "ESE", "SAN-127")]:
     with tab:
         components.render(components.coming_soon(f"{name}: coming in {ticket}",
                                                  "This tab arrives in a later ticket."))
@@ -70,7 +70,7 @@ def formula_card(weight: float) -> str:
     return components.section_card("How your final mark works", body)
 
 
-with tab_goal:
+def render_goal() -> None:
     target = subject["target"]
     if target is None:
         components.render(components.coming_soon(
@@ -79,7 +79,7 @@ with tab_goal:
             "&#127919;"))
         st.page_link("views/student_subjects.py", label="Set a target in My Subjects",
                      icon=":material/grid_view:")
-        st.stop()
+        return
 
     weight = subject["cia_weight"]
     scores = insights.student_component_scores(subject["id"], student["roll_no"])
@@ -160,3 +160,170 @@ with tab_goal:
     with components.card("goal_table"):
         st.markdown("### Components")
         st.dataframe(pd.DataFrame(rows), hide_index=True)
+
+
+# --- CIA Analysis (SAN-124) ----------------------------------------------------
+def _toggle_flag(key: str, student_id: int, question_id: int, label: str) -> None:
+    if st.session_state[key]:
+        db.set_silly_flag(student_id, question_id)
+        st.toast(f"{label} flagged as a silly slip. Your analysis is updated.")
+    else:
+        db.clear_silly_flag(student_id, question_id)
+        st.toast(f"Silly-slip flag removed from {label}.")
+
+
+def time_pressure_text(a: analysis.PaperAnalysis) -> tuple[str, str]:
+    t = a.table
+    k = math.ceil(len(t) / 3)
+    last = t.tail(k)
+    names = [f"Q{int(q)}" for q in last["q_no"]]
+    got, mx = last["score"].fillna(0).sum(), last["max_marks"].sum()
+    last_pct = got / mx * 100
+    first_q = t.head(len(t) - k)["q_no"]
+    rest = (f"Q{int(first_q.iloc[0])}" if len(first_q) == 1
+            else f"Q{int(first_q.iloc[0])}–Q{int(first_q.iloc[-1])}")
+    title = "Time pressure on the last " + ("question" if k == 1 else f"{k} questions")
+    text = (f"{list_names(names)} earned {fmt(got)} of {fmt(mx)} marks ({last_pct:.0f}%) while you "
+            f"averaged {last_pct + a.student_drop:.0f}% on {rest}. You dropped "
+            f"{a.student_drop:.0f} points; the class dropped {a.class_drop:.0f}. In the next CIA, "
+            "keep 10 minutes for the final questions or answer the short ones first.")
+    return title, text
+
+
+def render_cia(analyses: dict[str, analysis.PaperAnalysis]) -> None:
+    if not analyses:
+        components.render(components.coming_soon(
+            "No CIA marks yet", "Your question-by-question analysis appears once your faculty "
+            "enters marks for a CIA paper.", "&#128203;"))
+        return
+    papers = list(analyses)
+    key = f"cia_paper_{subject['id']}"
+    if st.session_state.get(key) not in papers:
+        st.session_state[key] = papers[0]
+    waiting = [c for c in config.CIA_COMPONENTS if c not in analyses]
+
+    with components.card("cia_analysis"):
+        head, picker = st.columns([3, 2], vertical_alignment="center")
+        with head:
+            st.markdown("### CIA paper analysis")
+            st.caption("Question by question, against the class. The topper is never named."
+                       + (f" {list_names(waiting)}: not yet." if waiting else ""))
+        with picker:
+            comp = st.segmented_control("Paper", papers, key=key, required=True,
+                                        label_visibility="collapsed", width="stretch")
+        a = analyses[comp]
+        t = a.table
+
+        unit = f"/ {fmt(a.max_total)}"
+        tiles = [("Your total", fmt(a.total), unit, "&#9998;", "honey"),
+                 ("Class topper", fmt(a.topper_total), unit, "&#9733;", "sunflower"),
+                 ("Class average", fmt(a.class_avg_total), unit, "&#8960;", "lemon"),
+                 ("Percentile", components.ordinal(a.percentile), f"of {a.class_size}", "%",
+                  "bronze")]
+        for col, tile in zip(st.columns(4), tiles):
+            col.markdown(components.stat_tile(*tile), unsafe_allow_html=True)
+
+        if a.time_pressure:
+            components.render(components.warning_banner(*time_pressure_text(a)))
+
+        rows = [{"q_no": r.q_no, "topic": r.topic or "Untagged", "max": fmt(r.max_marks),
+                 "you": "–" if r.blank else fmt(r.score), "topper": fmt(r.topper),
+                 "class_avg": fmt(r.class_avg), "percentile": components.ordinal(r.percentile),
+                 "mistake": r.mistake_type} for r in t.itertuples()]
+        components.render(components.question_table(rows))
+
+        left, right = st.columns([3, 2])
+        labels = [f"Q{int(q)}" for q in t["q_no"]]
+        with left:
+            with components.card("cia_compare"):
+                st.markdown("**You vs topper vs class** · % of question max")
+                st.plotly_chart(plotly_theme.question_compare_figure(
+                    labels, list(t["score"].fillna(0) / t["max_marks"] * 100),
+                    list(t["topper"] / t["max_marks"] * 100),
+                    list(t["class_avg"] / t["max_marks"] * 100)), key=f"cia_compare_{comp}")
+        with right:
+            with components.card("cia_donut"):
+                lost_by = (t["max_marks"] - t["score"].fillna(0)).groupby(t["mistake_type"]).sum()
+                lost = {m: float(lost_by.get(m, 0)) for m in analysis.MISTAKE_TYPES}
+                st.markdown(f"**Where the {fmt(a.max_total - a.total)} marks went**")
+                if a.max_total - a.total <= 0:
+                    st.caption("Full marks: nothing lost on this paper.")
+                else:
+                    st.plotly_chart(plotly_theme.mistake_donut_figure(lost), key=f"cia_donut_{comp}")
+
+    # --- next moves -------------------------------------------------------------
+    cards = []
+    for r in t.to_dict("records"):
+        tip = suggestions.question_tip(r)
+        if tip:
+            cards.append((suggestions.potential_gain(r), r, tip))
+    cards.sort(key=lambda c: (-c[0], c[1]["q_no"]))
+    if not cards:
+        components.render(components.callout("Full marks on every question. Nothing to fix here."))
+        return
+    plural = "s" if len(cards) != 1 else ""
+    components.render(components.section_head(
+        f"Your next moves after {comp}", f"{len(cards)} suggestion{plural} · biggest gain first"))
+    dv = st.session_state.get("data_version", 0)
+    for start in range(0, len(cards), 3):
+        cols = st.columns(3)
+        for col, (gain, r, tip) in zip(cols, cards[start:start + 3]):
+            qid = int(r["question_id"])
+            with col, components.tip_card(f"{qid}", r["mistake_type"]):
+                components.render(components.tip_card_html(
+                    r["mistake_type"], gain, suggestions.tip_title(r), tip))
+                if not r["blank"] and r["score"] < r["max_marks"]:
+                    fkey = f"flag_{student['id']}_{qid}_{dv}"
+                    st.checkbox("Right method, but I made a calculation/silly slip",
+                                value=bool(r["flagged"]), key=fkey, on_change=_toggle_flag,
+                                args=(fkey, student["id"], qid, f"Q{int(r['q_no'])}"))
+
+
+# --- Progress (SAN-124) -----------------------------------------------------------
+def render_progress(analyses: dict[str, analysis.PaperAnalysis]) -> None:
+    rows = analysis.topic_progress(analyses)
+    if rows.empty:
+        components.render(components.coming_soon(
+            "No progress to show yet", "Topic percentages appear once your CIA marks are in.",
+            "&#128200;"))
+        return
+    papers = list(dict.fromkeys(rows["component"]))
+    counts = rows.groupby("topic_id")["component"].nunique()
+    multi = rows[rows["topic_id"].isin(counts[counts >= 2].index)]
+
+    with components.card("progress"):
+        st.markdown("### Are your weak topics improving?")
+        st.caption("% scored on each topic's questions, paper by paper.")
+        if len(papers) < 2:
+            components.render(components.callout(
+                f"Progress appears after two papers. Only {papers[0]} has marks so far; "
+                "your topic lines start once the next CIA is in."))
+        elif multi.empty:
+            components.render(components.callout(
+                "No topic has been asked in two papers yet, so there is no trend to draw."))
+        else:
+            chips = []
+            for _tid, g in multi.groupby("topic_id", sort=False):
+                first, last = g["pct"].iloc[0], g["pct"].iloc[-1]
+                chips.append((last - first, g["topic"].iloc[0], first, last))
+            chips.sort(key=lambda c: -c[0])
+            components.render('<div class="gl-chips">' + "".join(
+                components.progress_chip(topic, first, last) for _d, topic, first, last in chips)
+                + "</div>")
+            rank = {topic: i for i, (_d, topic, _f, _l) in enumerate(chips)}  # biggest gain first
+            multi = multi.iloc[multi["topic"].map(rank).argsort(kind="stable")]
+            st.plotly_chart(plotly_theme.topic_progress_figure(multi, list(config.CIA_COMPONENTS)),
+                            key="progress_fig")
+        with st.expander("Every topic by paper"):
+            table = (rows.pivot_table(index="topic", columns="component", values="pct", sort=False)
+                     .reindex(columns=papers).round(0))
+            st.dataframe(table.rename_axis("Topic").rename(columns=lambda c: f"{c} %"))
+
+
+analyses = insights.student_paper_analyses(subject["id"], student["roll_no"], student["id"])
+with tab_goal:
+    render_goal()
+with tab_cia:
+    render_cia(analyses)
+with tab_progress:
+    render_progress(analyses)

@@ -164,6 +164,33 @@ def seed_papers_and_marks(conn, ctx: dict) -> None:
             db.save_ese_marks(sid, ese, conn=conn)
 
 
+# --- silly-error flags (SAN-124) ----------------------------------------------
+# Other students flag a few attempted, below-full questions so the faculty
+# flag counts have data. One question per subject draws extra flags (a
+# "maybe ambiguous" question). The demo student starts with no flags so the
+# tick can be shown live.
+FLAG_SEED = 1240
+FLAG_PROB, SUSPECT_FLAG_PROB = 0.04, 0.35
+SUSPECT_QUESTIONS = {("MCA231", "CIA-2", 4), ("MCA232", "CIA-1", 3)}
+
+
+@seed_step
+def seed_silly_flags(conn, ctx: dict) -> None:
+    rng = random.Random(FLAG_SEED)
+    for code, sid in ctx["subject_ids"].items():
+        rows = conn.execute(
+            "SELECT q.id, q.component, q.q_no, q.max_marks, m.roll_no, m.score FROM questions q "
+            "JOIN marks m ON m.question_id = q.id WHERE q.subject_id = ? "
+            "ORDER BY q.component, q.q_no, m.roll_no", (sid,)).fetchall()
+        for qid, comp, q_no, mx, roll, score in rows:
+            p = SUSPECT_FLAG_PROB if (code, comp, q_no) in SUSPECT_QUESTIONS else FLAG_PROB
+            hit = rng.random() < p  # always draw so the stream stays stable
+            student_id = ctx["student_ids"].get(roll)
+            if (hit and student_id is not None and roll != config.DEMO_STUDENT_ROLL
+                    and score is not None and 0 < score < mx):
+                db.set_silly_flag(student_id, qid, conn=conn)
+
+
 def seed_all() -> dict:
     """Run every seed step in one transaction on an initialised, empty DB."""
     ctx: dict = {}

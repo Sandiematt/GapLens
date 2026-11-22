@@ -102,3 +102,80 @@ def placeholder_page(title: str, subtitle: str) -> None:
 def card(key: str):
     """A white, rounded, shadowed container. ``key`` must be unique per page."""
     return st.container(border=True, key=f"card_{key}")
+
+
+# --- CIA analysis (SAN-124) ----------------------------------------------------
+# Mistake type -> pill kind (see theme.PILLS) and the css suffix used for cards.
+MISTAKE_KIND = {"OK": "ok", "Concept gap": "concept-gap", "Not attempted": "not-attempted",
+                "Silly error flagged": "silly-flagged", "Silly loss": "silly-loss",
+                "Time pressure": "time-pressure"}
+
+
+def mistake_pill(mistake: str) -> str:
+    return pill(mistake, MISTAKE_KIND.get(mistake, "gold"))
+
+
+def num(x: float) -> str:
+    """1 decimal place, trailing zeros dropped."""
+    return f"{x:.1f}".rstrip("0").rstrip(".")
+
+
+def ordinal(n: float) -> str:
+    n = int(round(n))
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def stat_tile(label: str, value: str, unit: str = "", icon: str = "&#9679;",
+              tone: str = "honey") -> str:
+    """Compact KPI tile on a soft gold shade (``icon`` is trusted HTML)."""
+    soft, _main, fg = theme.SHADES.get(tone, theme.SHADES["honey"])
+    u = f'<span class="gl-tile-unit">{escape(unit)}</span>' if unit else ""
+    return _h(f'<div class="gl-tile" style="background:{soft}"><div class="gl-tile-icon" '
+              f'style="color:{fg}">{icon}</div><div><div class="gl-tile-label">{escape(label)}</div>'
+              f'<div class="gl-tile-value">{escape(value)}{u}</div></div></div>')
+
+
+def warning_banner(title: str, text: str, icon: str = "&#9719;") -> str:
+    return _h(f'<div class="gl-warn"><span class="gl-warn-icon">{icon}</span><div>'
+              f'<div class="gl-warn-title">{escape(title)}</div><div>{escape(text)}</div></div></div>')
+
+
+def question_table(rows: list[dict]) -> str:
+    """Read-only question table. Row keys: q_no, topic, max, you, topper, class_avg,
+    percentile, mistake (already-formatted strings, except q_no and mistake)."""
+    head = "".join(f"<th>{h}</th>" for h in
+                   ("Q", "Topic", "Max", "You", "Topper", "Class avg", "Percentile", "Mistake type"))
+    body = "".join(
+        f'<tr><td class="gl-q">Q{int(r["q_no"])}</td><td>{escape(r["topic"])}</td>'
+        f'<td class="gl-muted">{escape(r["max"])}</td><td class="gl-you">{escape(r["you"])}</td>'
+        f'<td>{escape(r["topper"])}</td><td>{escape(r["class_avg"])}</td>'
+        f'<td>{escape(r["percentile"])}</td><td>{mistake_pill(r["mistake"])}</td></tr>'
+        for r in rows)
+    return _h(f'<div class="gl-table-wrap"><table class="gl-table"><thead><tr>{head}</tr></thead>'
+              f'<tbody>{body}</tbody></table></div>')
+
+
+def tip_card_html(mistake: str, gain: float, title: str, text: str) -> str:
+    g = f"Up to +{num(gain)} mark" + ("" if abs(gain - 1) < 1e-9 else "s")
+    return _h(f'<div class="gl-row">{mistake_pill(mistake)}<span class="gl-gain">{escape(g)}</span></div>'
+              f'<div class="gl-tip-title">{escape(title)}</div><div class="gl-tip-text">{escape(text)}</div>')
+
+
+def section_head(title: str, aside: str = "") -> str:
+    """Section title outside a card, with an optional caption on the right."""
+    a = f'<span>{escape(aside)}</span>' if aside else ""
+    return _h(f'<div class="gl-section-head"><div class="gl-section-title">{escape(title)}</div>{a}</div>')
+
+
+def tip_card(key: str, mistake: str):
+    """Card container for a suggestion; the top edge takes the mistake colour."""
+    return st.container(border=True, key=f"tip_{MISTAKE_KIND.get(mistake, 'ok')}_{key}")
+
+
+def progress_chip(topic: str, first: float, last: float) -> str:
+    kind = "ok" if last > first + 5 else ("at-risk" if last < first - 5 else "stretch")
+    arrow = "&#8599; " if kind == "ok" else ("&#8600; " if kind == "at-risk" else "")
+    bg, fg = theme.PILLS[kind]
+    return (f'<span class="gl-pill" style="background:{bg};color:{fg}">{arrow}'
+            f'{escape(topic)}: {first:.0f}% → {last:.0f}%</span>')
