@@ -302,6 +302,10 @@ h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-h
   flex:1 1 auto; }}
 /* tip cards: the silly-slip checkbox sits on the card's bottom edge */
 [class*="st-key-tip_"] > [data-testid="stElementContainer"]:has([data-testid="stCheckbox"]) {{ margin-top:auto; }}
+/* Streamlit pulls every markdown block up by 1rem to cancel a trailing <p> margin. Our
+   HTML components end without a <p>, so that pull clips their last 16px (gap pills,
+   the last resource card). Undo it for blocks that are one of our components. */
+[data-testid="stMarkdownContainer"]:has(> [class*="gl-"]:last-child) {{ margin-bottom:0 !important; }}
 /* charts sit on the white card (Streamlit's chart theme paints them cream) */
 .stPlotlyChart .main-svg {{ background:transparent !important; }}
 .stPlotlyChart .modebar-group {{ background:transparent !important; }}
