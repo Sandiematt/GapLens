@@ -161,3 +161,91 @@ def silly_flags_figure(labels, counts) -> go.Figure:
     fig.update_yaxes(rangemode="tozero", dtick=1, title=None)
     fig.update_layout(height=260, bargap=0.4, showlegend=False)
     return style_figure(fig)
+
+
+# --- Home page reference charts ---------------------------------------------------
+def home_percentage_figure(labels: list[str], values: list[float],
+                           details: list[str] | None = None) -> go.Figure:
+    """Minimal dark line + coral dots chart matching the reference PERCENTAGE card."""
+    fig = go.Figure()
+    hover = details if details is not None else labels
+    fig.add_scatter(
+        x=labels,
+        y=values,
+        mode="lines+markers",
+        line=dict(color="#262833", width=1.8),
+        marker=dict(size=7, color="#F27D65", line=dict(width=0)),
+        customdata=hover,
+        hovertemplate="<b>%{customdata}</b><br>Score: %{y:.0f}%<extra></extra>",
+        showlegend=False,
+    )
+    fig.update_xaxes(
+        type="category",
+        showgrid=False,
+        showline=False,
+        zeroline=False,
+        tickfont=dict(family="Barlow Condensed, sans-serif", size=11, color="#58B55B"),
+        tickangle=0,
+    )
+    fig.update_yaxes(
+        range=[0, 108],
+        tickvals=[0, 25, 50, 75, 100],
+        ticksuffix="%",
+        showgrid=True,
+        gridcolor="#EDF5F3",
+        showline=False,
+        zeroline=False,
+        tickfont=dict(family="Barlow Condensed, sans-serif", size=11, color="#58B55B"),
+        title=None,
+    )
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=210,
+        margin=dict(l=32, r=16, t=12, b=28),
+        hoverlabel=dict(bgcolor="#262833", font_color="#FFFFFF", font_size=12),
+    )
+    return fig
+
+
+def home_bar_figure(labels: list[str], values: list[float],
+                    details: list[str] | None = None) -> go.Figure:
+    """Thin dark charcoal vertical bars on the mint-green card matching TOTAL ORDERS."""
+    fig = go.Figure()
+    hover = details if details is not None else labels
+    bar_width = 0.17 if len(labels) >= 6 else 0.24
+    fig.add_bar(
+        x=labels,
+        y=values,
+        width=bar_width,
+        marker=dict(color="#262833", line=dict(width=0)),
+        customdata=hover,
+        hovertemplate="<b>%{customdata}</b><br>Score: %{y:.1f}%<extra></extra>",
+        showlegend=False,
+    )
+    fig.update_xaxes(
+        type="category",
+        showgrid=False,
+        showline=False,
+        zeroline=False,
+        tickfont=dict(family="Barlow Condensed, sans-serif", size=11, color="#FFFFFF"),
+    )
+    fig.update_yaxes(
+        range=[0, 108],
+        tickvals=[0, 25, 50, 75, 100],
+        ticksuffix="%",
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.22)",
+        showline=False,
+        zeroline=False,
+        tickfont=dict(family="Barlow Condensed, sans-serif", size=11, color="#FFFFFF"),
+        title=None,
+    )
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=230,
+        margin=dict(l=34, r=18, t=16, b=28),
+        hoverlabel=dict(bgcolor="#262833", font_color="#FFFFFF", font_size=12),
+    )
+    return fig

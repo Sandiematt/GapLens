@@ -1,23 +1,71 @@
-"""Role and profile state (no login: the sidebar picks who you are).
+"""Role, authentication, and profile state.
 
 Session keys:
-  active_role  "Student" | "Faculty"
-  student_id   id of the active student profile
-  faculty_id   id of the active faculty profile
+  authenticated bool — whether the user has signed in
+  auth_username username used at sign-in
+  active_role   "Student" | "Faculty"
+  student_id    id of the active student profile
+  faculty_id    id of the active faculty profile
 Stale ids (e.g. after a data reset) silently fall back to the defaults.
 """
 from __future__ import annotations
+
+import hmac
 
 import streamlit as st
 
 import config
 from core import db, seed
 
+AUTH_KEY, AUTH_USER_KEY = "authenticated", "auth_username"
 ROLE_KEY, STUDENT_KEY, FACULTY_KEY = "active_role", "student_id", "faculty_id"
 
 
 def ensure_state() -> None:
     st.session_state.setdefault(ROLE_KEY, config.ROLES[0])
+
+
+def is_authenticated() -> bool:
+    return bool(st.session_state.get(AUTH_KEY)) and st.session_state.get(ROLE_KEY) in config.ROLES
+
+
+def authenticate(role: str, username: str, password: str) -> bool:
+    """Return True iff ``username`` and ``password`` match ``role``'s credentials."""
+    expected = config.LOGIN_CREDENTIALS.get(role)
+    if expected is None:
+        return False
+    exp_user, exp_pass = expected
+    return (
+        hmac.compare_digest(username.strip().lower(), exp_user.lower())
+        and hmac.compare_digest(password, exp_pass)
+    )
+
+
+def matching_role(username: str, password: str) -> str | None:
+    """Return the role matching these credentials, if any."""
+    for role in config.ROLES:
+        if authenticate(role, username, password):
+            return role
+    return None
+
+
+def login(role: str, username: str) -> None:
+    """Mark the session authenticated for ``role``."""
+    if role not in config.ROLES:
+        raise ValueError(f"Unknown role: {role}")
+    st.session_state[AUTH_KEY] = True
+    st.session_state[ROLE_KEY] = role
+    st.session_state[AUTH_USER_KEY] = username.strip()
+
+
+def logout() -> None:
+    """Clear authentication state so the app returns to the login screen."""
+    for key in (AUTH_KEY, AUTH_USER_KEY, ROLE_KEY, "confirm_reset"):
+        st.session_state.pop(key, None)
+
+
+def auth_username() -> str:
+    return str(st.session_state.get(AUTH_USER_KEY) or "")
 
 
 def current_role() -> str:

@@ -354,10 +354,9 @@ def weak_topic_header(rank: int, title: str, lost: float, mx: float, pct: float)
 
 
 # --- student My Subjects card ------------------------------------------------------
-# Banner variants alternate between the hero gold and deep gold, as in the design.
+# Banner variants alternate between mint-accented slate and coral-accented slate.
 BANNERS = [("gl-banner-hero", "&#128214;"), ("gl-banner-deep", "&lt;/&gt;")]
-SEG_COLORS = [theme.SHADES["lemon"][1], theme.SHADES["honey"][1],
-              theme.SHADES["marigold"][1], theme.SHADES["bronze"][1]]
+SEG_COLORS = ["#262833", "#4F546A", "#8FE089", "#F27D65"]
 
 
 def weight_split(cia_weight: float) -> str:
@@ -395,3 +394,180 @@ def faculty_subject_summary(code: str, name: str, pills_html: str) -> str:
     """Title and pills of a faculty subject card (``pills_html`` is trusted)."""
     return _h(f'<div class="gl-card-title">{escape(code)} {escape(name)}</div>'
               f'<div class="gl-pill-row">{pills_html}</div>')
+
+
+# --- Home Page (reference dashboard components) ----------------------------------
+ICON_TREND_UP = (
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" '
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    '<polyline points="4 16 10 10 14 14 20 7"/>'
+    '<polyline points="15 7 20 7 20 12"/></svg>')
+ICON_TREND_DOWN = (
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" '
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    '<polyline points="4 8 10 14 14 10 20 17"/>'
+    '<polyline points="15 17 20 17 20 12"/></svg>')
+ICON_BARS = (
+    '<svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor">'
+    '<rect x="4" y="12" width="3.5" height="8" rx="1"/>'
+    '<rect x="10.25" y="6" width="3.5" height="14" rx="1"/>'
+    '<rect x="16.5" y="9" width="3.5" height="11" rx="1"/></svg>')
+ICON_BOOK = (
+    '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" '
+    'stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>'
+    '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>')
+ICON_TARGET = (
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" '
+    'stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>'
+    '<circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>')
+ICON_HEART = (
+    '<svg viewBox="0 0 24 24" width="34" height="34" fill="#F27D65">'
+    '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 '
+    '2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 '
+    '19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>')
+ICON_CLOUD = (
+    '<svg viewBox="0 0 24 24" width="36" height="36" fill="#8FE089">'
+    '<path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04 '
+    'A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 '
+    '0-2.64-2.05-4.78-4.65-4.96z"/></svg>')
+ICON_ARROW_DOWN = (
+    '<svg viewBox="0 0 48 48" width="46" height="46" fill="none" stroke="#FFFFFF" '
+    'stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="24" y1="10" x2="24" y2="38"/>'
+    '<polyline points="12 27 24 38 36 27"/></svg>')
+
+_TOPBAR_LOGO = (
+    '<svg viewBox="0 0 36 36" width="34" height="34" fill="none">'
+    '<circle cx="18" cy="18" r="17" fill="#262833"/>'
+    '<path d="M22 1.5 A17 17 0 0 1 22 34.5 A13 13 0 0 0 22 1.5 Z" fill="#F27D65"/>'
+    '<text x="15.5" y="23.5" text-anchor="middle" fill="#F27D65" '
+    'font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="18">G</text></svg>')
+_TOPBAR_SEARCH = (
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" '
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>')
+_TOPBAR_BELL = (
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>'
+    '<path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>')
+_TOPBAR_HELP = (
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" '
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="9"/>'
+    '<path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2.2-2.4 3.7"/>'
+    '<circle cx="12" cy="17.2" r="0.8" fill="currentColor"/></svg>')
+_TOPBAR_USER_SVG = (
+    '<svg viewBox="0 0 36 36" width="36" height="36" fill="none">'
+    '<circle cx="18" cy="14" r="6" fill="#262833"/>'
+    '<path d="M7 33c1.5-6.5 6-9.5 11-9.5s9.5 3 11 9.5" fill="#262833"/></svg>')
+_HOME_CRUMB_SVG = (
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#262833" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>'
+    '<path d="M10 20v-5h4v5"/></svg>')
+
+
+def home_topbar_brand() -> str:
+    """Left logo + wordmark for the interactive top bar."""
+    return _h(
+        f'<div class="gl-topbar-left">'
+        f'<div class="gl-topbar-logo">{_TOPBAR_LOGO}</div>'
+        f'<div class="gl-topbar-word">{escape(config.APP_NAME)}</div></div>')
+
+
+def home_topbar_user(user_name: str, user_sub: str) -> str:
+    """Right user avatar + name/roll block for the interactive top bar."""
+    return _h(
+        f'<div class="gl-top-user"><div class="gl-top-avatar">{_TOPBAR_USER_SVG}</div>'
+        f'<div><div class="gl-top-uname">{escape(user_name)}</div>'
+        f'<div class="gl-top-uroll">{escape(user_sub)}</div></div></div>')
+
+
+def notification_item(title: str, body: str, kind: str = "alert") -> str:
+    """One notification entry inside the top-bar notifications popover."""
+    cls = {"alert": "gl-notif-item", "info": "gl-notif-item gl-notif-info",
+           "ok": "gl-notif-item gl-notif-ok"}.get(kind, "gl-notif-item")
+    return _h(
+        f'<div class="{cls}"><div>'
+        f'<div class="gl-notif-title">{escape(title)}</div>'
+        f'<div class="gl-notif-body">{escape(body)}</div>'
+        f'</div></div>')
+
+
+def home_topbar(user_name: str, user_sub: str, search_hint: str, alert_count: int = 0) -> str:
+    """White top navigation bar mirroring the reference header."""
+    badge = f'<span class="gl-top-badge">{alert_count}</span>' if alert_count > 0 else ""
+    return _h(
+        f'<div class="gl-topbar">'
+        f'<div class="gl-topbar-left">'
+        f'<div class="gl-topbar-logo">{_TOPBAR_LOGO}</div>'
+        f'<div class="gl-topbar-word">{escape(config.APP_NAME)}</div></div>'
+        f'<div class="gl-topbar-right">'
+        f'<div class="gl-search-pill"><span class="gl-search-text">{escape(search_hint)}</span>'
+        f'<span class="gl-search-btn">{_TOPBAR_SEARCH}</span></div>'
+        f'<span class="gl-top-icon" title="Pending items &amp; gaps">{_TOPBAR_BELL}{badge}</span>'
+        f'<span class="gl-top-icon" title="Smart Marks Coach">{_TOPBAR_HELP}</span>'
+        f'<div class="gl-top-user"><div class="gl-top-avatar">{_TOPBAR_USER_SVG}</div>'
+        f'<div><div class="gl-top-uname">{escape(user_name)}</div>'
+        f'<div class="gl-top-uroll">{escape(user_sub)}</div></div></div>'
+        f'</div></div>')
+
+
+def home_breadcrumb(title: str, crumb: str, chips_html: str = "") -> str:
+    """Title + inline house breadcrumb row matching the reference."""
+    chips = f'<div class="gl-chips">{chips_html}</div>' if chips_html else ""
+    return _h(
+        f'<div class="gl-crumb-row"><div class="gl-crumb-left">'
+        f'<h1 class="gl-crumb-title">{escape(title)}</h1>'
+        f'<span class="gl-crumb-path">{_HOME_CRUMB_SVG} {escape(crumb)}</span>'
+        f'</div>{chips}</div>')
+
+
+def home_kpi_card(title: str, value: str, delta: str, sub: str, icon_svg: str,
+                  icon_tone: str = "dark", positive: bool = True) -> str:
+    """Dark-header KPI card with circular colored icon badge."""
+    tone_cls = {"dark": "gl-icon-dark", "green": "gl-icon-green",
+                "coral": "gl-icon-coral"}.get(icon_tone, "gl-icon-dark")
+    delta_cls = "gl-delta-up" if positive else "gl-delta-down"
+    delta_html = f'<span class="{delta_cls}">{escape(delta)}</span>' if delta else ""
+    return _h(
+        f'<div class="gl-ref-kpi">'
+        f'<div class="gl-ref-kpi-head">{escape(title)}</div>'
+        f'<div class="gl-ref-kpi-body">'
+        f'<div style="min-width:0"><div class="gl-ref-kpi-val">{escape(value)}</div>'
+        f'<div class="gl-ref-kpi-foot">{delta_html}{escape(sub)}</div></div>'
+        f'<div class="gl-ref-kpi-icon {tone_cls}">{icon_svg}</div>'
+        f'</div></div>')
+
+
+def home_mini_card(title_lines: tuple[str, ...], metric: str, sub: str, icon_svg: str,
+                   accent_color: str = "#F27D65") -> str:
+    """Stacked white summary card with green top-right dots and right-side icon."""
+    title_html = "<br>".join(escape(line) for line in title_lines)
+    return _h(
+        f'<div class="gl-mini-card">'
+        f'<div class="gl-mini-dots"><span></span><span></span><span></span></div>'
+        f'<div style="min-width:0"><div class="gl-mini-title">{title_html}</div>'
+        f'<div class="gl-mini-metric" style="color:{accent_color}">{escape(metric)}</div>'
+        f'<div class="gl-mini-sub">{escape(sub)}</div></div>'
+        f'<div class="gl-mini-icon">{icon_svg}</div>'
+        f'</div>')
+
+
+def home_action_card_top(eyebrow: str, title: str, sub: str) -> str:
+    """Coral-topped white card with large centered dark charcoal arrow circle."""
+    return _h(
+        f'<div class="gl-action-top"><span>{escape(eyebrow)}</span><span>&bull;&bull;&bull;</span></div>'
+        f'<div class="gl-action-body">'
+        f'<div class="gl-action-circle">{ICON_ARROW_DOWN}</div>'
+        f'<div class="gl-action-title">{escape(title)}</div>'
+        f'<div class="gl-action-sub">{escape(sub)}</div></div>')
+
+
+def home_green_header(title: str, aside: str = "") -> str:
+    """Dark charcoal top strip for the mint-green bar chart card."""
+    aside_html = f'<span>{escape(aside)}</span>' if aside else ""
+    return _h(f'<div class="gl-green-head"><div>{escape(title)}</div>{aside_html}</div>')

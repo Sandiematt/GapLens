@@ -20,10 +20,95 @@ PAGES = {
 }
 
 
+def _auth(at, role="Student"):
+    at.session_state["authenticated"] = True
+    at.session_state["active_role"] = role
+    at.session_state["auth_username"] = config.LOGIN_CREDENTIALS[role][0]
+    return at
+
+
+@pytest.fixture
+def raw_app(tmp_db):
+    seed.ensure_seeded()
+    return AppTest.from_file(APP, default_timeout=30)
+
+
 @pytest.fixture
 def app(tmp_db):
     seed.ensure_seeded()
-    return AppTest.from_file(APP, default_timeout=30)
+    return _auth(AppTest.from_file(APP, default_timeout=30), "Student")
+
+
+def test_login_page_is_default_first_screen(raw_app):
+    raw_app.run()
+    assert not raw_app.exception
+    text = " ".join(m.value for m in raw_app.markdown)
+    assert "Student Login" in text
+    assert raw_app.segmented_control(key="login_role_tab").options == ["Student Login", "Faculty Login"]
+    assert len(raw_app.sidebar.get("page_link")) == 0
+
+
+def test_student_login_validation_and_role_isolation(raw_app):
+    raw_app.run()
+    # Wrong password rejected
+    raw_app.text_input(key="login_user_Student").set_value("student")
+    raw_app.text_input(key="login_pass_Student").set_value("wrong")
+    raw_app.get("form_submit_button")[0].click().run()
+    assert not raw_app.exception
+    assert any("Invalid student username or password" in e.value for e in raw_app.error)
+    assert not raw_app.session_state.get("authenticated")
+
+    # Faculty credentials on Student Login tab are rejected with a helpful hint
+    raw_app.text_input(key="login_user_Student").set_value("admin")
+    raw_app.text_input(key="login_pass_Student").set_value("admin123")
+    raw_app.get("form_submit_button")[0].click().run()
+    assert any("Faculty Login" in e.value for e in raw_app.error)
+    assert not raw_app.session_state.get("authenticated")
+
+    # Valid Student credentials open only Student pages
+    raw_app.text_input(key="login_user_Student").set_value("student")
+    raw_app.text_input(key="login_pass_Student").set_value("student123")
+    raw_app.get("form_submit_button")[0].click().run()
+    assert not raw_app.exception
+    assert raw_app.session_state["authenticated"] is True
+    assert raw_app.session_state["active_role"] == "Student"
+    assert len(raw_app.sidebar.get("page_link")) == len(PAGES["Student"])
+    assert "Data Structures" in " ".join(m.value for m in raw_app.markdown)
+
+    # Logout returns to Login screen
+    raw_app.sidebar.button(key="logout_btn").click().run()
+    assert not raw_app.exception
+    assert not raw_app.session_state.get("authenticated")
+    assert raw_app.segmented_control(key="login_role_tab").options == ["Student Login", "Faculty Login"]
+
+
+def test_faculty_login_validation_and_role_isolation(raw_app):
+    raw_app.run()
+    raw_app.segmented_control(key="login_role_tab").set_value("Faculty Login").run()
+    assert not raw_app.exception
+    assert "Faculty Login" in " ".join(m.value for m in raw_app.markdown)
+
+    # Student credentials on Faculty Login tab are rejected
+    raw_app.text_input(key="login_user_Faculty").set_value("student")
+    raw_app.text_input(key="login_pass_Faculty").set_value("student123")
+    raw_app.get("form_submit_button")[0].click().run()
+    assert any("Student Login" in e.value for e in raw_app.error)
+    assert not raw_app.session_state.get("authenticated")
+
+    # Valid Faculty credentials open only Faculty pages
+    raw_app.text_input(key="login_user_Faculty").set_value("admin")
+    raw_app.text_input(key="login_pass_Faculty").set_value("admin123")
+    raw_app.get("form_submit_button")[0].click().run()
+    assert not raw_app.exception
+    assert raw_app.session_state["authenticated"] is True
+    assert raw_app.session_state["active_role"] == "Faculty"
+    assert len(raw_app.sidebar.get("page_link")) == len(PAGES["Faculty"])
+    assert "Subjects you teach" in " ".join(m.value for m in raw_app.markdown)
+
+    # Logout returns to Login screen
+    raw_app.sidebar.button(key="logout_btn").click().run()
+    assert not raw_app.exception
+    assert not raw_app.session_state.get("authenticated")
 
 
 def test_student_default_profile_and_subjects(app):
@@ -41,8 +126,7 @@ def test_page_list_covers_every_view_file():
 
 
 def _open_page(role, script, **state):
-    at = AppTest.from_file(APP, default_timeout=30)
-    at.session_state["active_role"] = role
+    at = _auth(AppTest.from_file(APP, default_timeout=30), role)
     for key, value in state.items():
         at.session_state[key] = value
     at.run()  # switch_page is ignored before the first run
@@ -104,7 +188,7 @@ def test_duplicate_roll_shows_error(app):
 
 
 def test_faculty_reset_flow(app):
-    app.session_state["active_role"] = "Faculty"
+    _auth(app, "Faculty")
     app.run()
     demo_id = db.get_student_by_roll("25MCA007")["id"]
     sid = db.list_subjects()[0]["id"]
@@ -117,7 +201,7 @@ def test_faculty_reset_flow(app):
 
 
 def _faculty_app(app):
-    app.session_state["active_role"] = "Faculty"
+    _auth(app, "Faculty")
     app.run()
     assert not app.exception
     return app
@@ -133,7 +217,7 @@ def test_faculty_creates_subject_and_students_see_it(app):
     subj = [s for s in db.list_subjects(class_name="MCA-A") if s["code"] == "MCA240"][0]
     assert [(t["unit_no"], t["title"]) for t in db.list_topics(subj["id"])] == [
         (1, "OSI"), (1, "Routing"), (2, "Transport")]
-    student = AppTest.from_file(APP, default_timeout=30)
+    student = _auth(AppTest.from_file(APP, default_timeout=30), "Student")
     student.run()
     assert "Networks" in " ".join(m.value for m in student.markdown)
 
@@ -183,7 +267,7 @@ def test_papers_page_components_and_double_save(app):
 
 # --- subject dashboard (SAN-123) ---------------------------------------------
 def _dashboard(student_id=None, subject_id=None):
-    at = AppTest.from_file(APP, default_timeout=30)
+    at = _auth(AppTest.from_file(APP, default_timeout=30), "Student")
     if student_id:
         at.session_state["student_id"] = student_id
     if subject_id:
@@ -322,8 +406,7 @@ def test_new_student_sees_empty_cia_and_progress(tmp_db):
 
 
 def _insights_page():
-    at = AppTest.from_file(APP, default_timeout=30)
-    at.session_state["active_role"] = "Faculty"
+    at = _auth(AppTest.from_file(APP, default_timeout=30), "Faculty")
     at.run()
     at.switch_page("views/faculty_insights.py")
     at.run()
@@ -376,8 +459,7 @@ def test_ese_tab_without_ese_marks(tmp_db):
 
 
 def _ese_page():
-    at = AppTest.from_file(APP, default_timeout=30)
-    at.session_state["active_role"] = "Faculty"
+    at = _auth(AppTest.from_file(APP, default_timeout=30), "Faculty")
     at.run()
     at.switch_page("views/faculty_ese.py")
     at.run()

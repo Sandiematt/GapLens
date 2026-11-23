@@ -1,19 +1,22 @@
-"""Sidebar: brand, role navigation, View-as switch, profile picker, demo reset."""
+"""Sidebar: brand, role navigation, signed-in badge, profile picker, logout, demo reset."""
 from __future__ import annotations
+
+from html import escape
 
 import streamlit as st
 
 import config
 from core import db
-from ui import components, profile
+from ui import components, loader, profile
 from ui.flash import flash
 
-LOGO_SVG = ('<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" '
-            'stroke-linecap="round" stroke-linejoin="round" width="22" height="22">'
-            '<circle cx="12" cy="12" r="10"/><line x1="14.31" y1="8" x2="20.05" y2="17.94"/>'
-            '<line x1="9.69" y1="8" x2="21.17" y2="8"/><line x1="7.38" y1="12" x2="13.12" y2="2.06"/>'
-            '<line x1="9.69" y1="16" x2="3.95" y2="6.06"/><line x1="14.31" y1="16" x2="2.83" y2="16"/>'
-            '<line x1="16.62" y1="12" x2="10.88" y2="21.94"/></svg>')
+LOGO_SVG = ('<svg viewBox="0 0 36 36" width="36" height="36" fill="none">'
+            '<circle cx="18" cy="18" r="17" fill="#1D1F28"/>'
+            '<path d="M18 1 A17 17 0 0 1 18 35 Z" fill="#F27D65"/>'
+            '<circle cx="18" cy="18" r="11" fill="#262833"/>'
+            '<text x="18" y="23" text-anchor="middle" fill="#F27D65" '
+            'font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="16">G</text>'
+            '</svg>')
 
 
 def _brand() -> None:
@@ -23,10 +26,23 @@ def _brand() -> None:
         f'<div class="gl-brand-tag">{config.APP_TAGLINE}</div></div></div>')
 
 
-def _on_role_change() -> None:
-    chosen = st.session_state.get("role_widget")
-    if chosen:  # ignore a deselect click
-        profile.set_role(chosen)
+def _signed_in_badge(role: str) -> None:
+    dot_color = "#8FE089" if role == "Student" else "#F27D65"
+    user = profile.auth_username()
+    user_html = f'<span class="gl-role-user">@{escape(user)}</span>' if user else ""
+    components.render(
+        f'<div class="gl-role-badge">'
+        f'<span class="gl-role-badge-text">'
+        f'<span class="gl-role-dot" style="background:{dot_color}"></span>{escape(role)}'
+        f'</span>{user_html}</div>'
+    )
+
+
+def _logout_control() -> None:
+    if st.button("Log out", key="logout_btn", icon=":material/logout:", width="stretch"):
+        profile.logout()
+        flash("Signed out successfully.")
+        st.rerun()
 
 
 def _on_profile_change(role: str) -> None:
@@ -115,7 +131,12 @@ def _reset_control() -> None:
         st.warning("This wipes all data and restores the demo. Continue?")
         yes, no = st.columns(2)
         if yes.button("Yes, reset", key="reset_yes", type="primary"):
-            profile.reset_demo_data()
+            loader.run_with_loading_bar(
+                "Resetting Demo Data",
+                "Restoring seeded subjects, marks & reviews…",
+                profile.reset_demo_data,
+                done_status="Demo data restored.",
+            )
             st.session_state["confirm_reset"] = False
             flash("Demo data restored.")
             st.rerun()
@@ -137,11 +158,11 @@ def render_sidebar(pages: list, role: str) -> None:
         if role == "Student":
             _subject_picker()
         with st.container(key="sidebar_footer"):
-            components.render(components.label("View as"))
-            st.session_state["role_widget"] = role  # sync before the widget renders
-            st.segmented_control("View as", list(config.ROLES), key="role_widget", width="stretch",
-                                 label_visibility="collapsed", on_change=_on_role_change)
+            components.render(components.label("Signed in as"))
+            _signed_in_badge(role)
             _profile_picker(role)
             _create_profile_form(role)
             if role == "Faculty":
                 _reset_control()
+            _logout_control()
+        components.render('<div class="gl-side-year">GAPLENS &middot; 2026</div>')

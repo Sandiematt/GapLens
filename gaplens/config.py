@@ -39,6 +39,11 @@ TARGET_CHOICES = tuple(range(60, 95, 5))  # 60, 65, ... 90
 TARGET_MIN, TARGET_MAX = 0, 100
 
 ROLES = ("Student", "Faculty")
+LOGIN_CREDENTIALS = {
+    "Student": ("student", "student123"),
+    "Faculty": ("admin", "admin123"),
+}
+LOADER_STEP_S = 0.16
 APP_NAME = "GapLens"
 APP_TAGLINE = "CHRIST Smart Marks Coach"
 

@@ -53,11 +53,13 @@ def test_resources_cascade_with_topic(seeded):
 
 def _student_at(subject_index):
     at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["authenticated"] = True
+    at.session_state["active_role"] = "Student"
+    at.session_state["auth_username"] = config.LOGIN_CREDENTIALS["Student"][0]
     at.run()
     code = ["MCA231", "MCA232"][subject_index]
     sub = [s for s in db.list_subjects() if s["code"] == code][0]
     at.session_state["subject_id"] = sub["id"]
-    at.session_state["active_role"] = "Student"
     at.run()
     at.switch_page("views/student_dashboard.py")
     at.run()
@@ -74,7 +76,9 @@ def test_student_weak_tab_renders_both_subjects(seeded, idx):
 
 def _faculty():
     at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["authenticated"] = True
     at.session_state["active_role"] = "Faculty"
+    at.session_state["auth_username"] = config.LOGIN_CREDENTIALS["Faculty"][0]
     at.run()
     at.switch_page("views/faculty_resources.py")
     at.run()
