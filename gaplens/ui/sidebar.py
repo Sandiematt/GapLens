@@ -38,6 +38,33 @@ def _signed_in_badge(role: str) -> None:
     )
 
 
+ROLE_SWITCH_KEY = "role_switch_widget"
+
+
+def _on_role_switch_change() -> None:
+    chosen = st.session_state.get(ROLE_SWITCH_KEY)
+    current = profile.current_role()
+    if chosen is None or chosen == current:
+        return
+    if chosen == "Faculty" and current == "Student":
+        profile.begin_faculty_switch()
+    elif chosen == "Student" and current == "Faculty":
+        profile.switch_to_student()
+        flash("Switched to the Student portal.")
+
+
+def _role_switcher(role: str) -> None:
+    st.session_state[ROLE_SWITCH_KEY] = role
+    st.segmented_control(
+        "Portal",
+        list(config.ROLES),
+        key=ROLE_SWITCH_KEY,
+        width="stretch",
+        label_visibility="collapsed",
+        on_change=_on_role_switch_change,
+    )
+
+
 def _logout_control() -> None:
     if st.button("Log out", key="logout_btn", icon=":material/logout:", width="stretch"):
         profile.logout()
@@ -160,6 +187,7 @@ def render_sidebar(pages: list, role: str) -> None:
         with st.container(key="sidebar_footer"):
             components.render(components.label("Signed in as"))
             _signed_in_badge(role)
+            _role_switcher(role)
             _profile_picker(role)
             _create_profile_form(role)
             if role == "Faculty":

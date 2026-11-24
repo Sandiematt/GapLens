@@ -19,6 +19,7 @@ from core import db, seed
 
 AUTH_KEY, AUTH_USER_KEY = "authenticated", "auth_username"
 ROLE_KEY, STUDENT_KEY, FACULTY_KEY = "active_role", "student_id", "faculty_id"
+FACULTY_SWITCH_KEY = "confirm_faculty_switch"
 
 
 def ensure_state() -> None:
@@ -60,8 +61,51 @@ def login(role: str, username: str) -> None:
 
 def logout() -> None:
     """Clear authentication state so the app returns to the login screen."""
-    for key in (AUTH_KEY, AUTH_USER_KEY, ROLE_KEY, "confirm_reset"):
+    for key in (
+        AUTH_KEY,
+        AUTH_USER_KEY,
+        ROLE_KEY,
+        "confirm_reset",
+        "confirm_faculty_switch",
+        "switch_faculty_user",
+        "switch_faculty_pass",
+        "role_switch_widget",
+    ):
         st.session_state.pop(key, None)
+
+
+def is_faculty_switch_pending() -> bool:
+    return (
+        is_authenticated()
+        and current_role() == "Student"
+        and bool(st.session_state.get(FACULTY_SWITCH_KEY))
+    )
+
+
+def begin_faculty_switch() -> None:
+    """Open the Faculty login gate while keeping the Student session intact."""
+    st.session_state[FACULTY_SWITCH_KEY] = True
+
+
+def cancel_faculty_switch() -> None:
+    """Close the Faculty login gate and discard entered credentials."""
+    for key in (FACULTY_SWITCH_KEY, "switch_faculty_user", "switch_faculty_pass"):
+        st.session_state.pop(key, None)
+
+
+def switch_to_faculty(username: str) -> None:
+    """Promote an authenticated session to the Faculty portal after credential verification."""
+    login("Faculty", username)
+    cancel_faculty_switch()
+    st.session_state.pop("confirm_reset", None)
+
+
+def switch_to_student() -> None:
+    """Switch an authenticated session down to the Student portal."""
+    st.session_state[ROLE_KEY] = "Student"
+    st.session_state[AUTH_USER_KEY] = config.LOGIN_CREDENTIALS["Student"][0]
+    cancel_faculty_switch()
+    st.session_state.pop("confirm_reset", None)
 
 
 def auth_username() -> str:

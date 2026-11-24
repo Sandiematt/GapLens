@@ -44,6 +44,8 @@ def test_login_page_is_default_first_screen(raw_app):
     assert not raw_app.exception
     text = " ".join(m.value for m in raw_app.markdown)
     assert "Student Login" in text
+    assert "Smart marks coaching" not in text
+    assert "GOAL TRACKER" not in text
     assert raw_app.segmented_control(key="login_role_tab").options == ["Student Login", "Faculty Login"]
     assert len(raw_app.sidebar.get("page_link")) == 0
 
@@ -653,3 +655,61 @@ def test_ese_fail_shows_missed_on_goal_and_ese_tabs(tmp_db):
     text = _text(at)
     assert "/100: Missed" in text and "/100: Achieved" not in text  # the goal hero
     assert "below the pass mark" in text
+
+
+def test_sidebar_role_switch_requires_faculty_credentials_and_allows_roundtrip(app):
+    app.run()
+    assert not app.exception
+    assert app.session_state["active_role"] == "Student"
+
+    # Clicking Faculty opens the dedicated Faculty Login screen without escalating role yet
+    app.sidebar.segmented_control(key="role_switch_widget").set_value("Faculty").run()
+    assert not app.exception
+    assert app.session_state["active_role"] == "Student"
+    assert app.session_state.get("confirm_faculty_switch") is True
+    assert "Faculty Login" in _text(app)
+    assert len(app.sidebar.get("page_link")) == 0
+
+    # Student credentials and wrong credentials are rejected on the Faculty Login screen
+    app.text_input(key="switch_faculty_user").set_value("student")
+    app.text_input(key="switch_faculty_pass").set_value("student123")
+    app.get("form_submit_button")[0].click().run()
+    assert any("Student Login" in e.value for e in app.error)
+    assert app.session_state["active_role"] == "Student"
+
+    app.text_input(key="switch_faculty_user").set_value("admin")
+    app.text_input(key="switch_faculty_pass").set_value("wrong")
+    app.get("form_submit_button")[0].click().run()
+    assert any("Invalid faculty username or password" in e.value for e in app.error)
+    assert app.session_state["active_role"] == "Student"
+
+    # Back to Student Portal returns to Student view cleanly
+    app.button(key="switch_faculty_cancel").click().run()
+    assert not app.exception
+    assert not app.session_state.get("confirm_faculty_switch")
+    assert app.session_state["active_role"] == "Student"
+    assert len(app.sidebar.get("page_link")) == len(PAGES["Student"])
+
+    # Re-open Faculty Login and verify with valid Faculty credentials -> opens Faculty portal
+    app.sidebar.segmented_control(key="role_switch_widget").set_value("Faculty").run()
+    app.text_input(key="switch_faculty_user").set_value("admin")
+    app.text_input(key="switch_faculty_pass").set_value("admin123")
+    app.get("form_submit_button")[0].click().run()
+    assert not app.exception
+    assert app.session_state["active_role"] == "Faculty"
+    assert app.session_state["auth_username"] == "admin"
+    assert "switch_faculty_pass" not in app.session_state
+    assert len(app.sidebar.get("page_link")) == len(PAGES["Faculty"])
+    assert "Subjects you teach" in _text(app)
+
+    # Switching from Faculty -> Student works in one click and re-enables Faculty login gate
+    app.sidebar.segmented_control(key="role_switch_widget").set_value("Student").run()
+    assert not app.exception
+    assert app.session_state["active_role"] == "Student"
+    assert app.session_state["auth_username"] == "student"
+    assert len(app.sidebar.get("page_link")) == len(PAGES["Student"])
+
+    app.sidebar.segmented_control(key="role_switch_widget").set_value("Faculty").run()
+    assert app.session_state["active_role"] == "Student"
+    assert app.session_state.get("confirm_faculty_switch") is True
+    assert "Faculty Login" in _text(app)

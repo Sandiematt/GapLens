@@ -230,10 +230,12 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.015em; }}
 [data-testid="stSidebar"] [data-testid="stButtonGroup"] [role="radiogroup"] {{
   background:#2B2E3C; border:1px solid rgba(255,255,255,0.10);
 }}
-[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"] {{
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"] p {{
   color:#B8BECE;
 }}
-[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"][aria-checked="true"] {{
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"][aria-checked="true"],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-variant="segmented_control"][aria-checked="true"] p {{
   background:var(--coral); color:#FFFFFF;
 }}
 [data-testid="stSidebar"] [data-testid="stExpander"] {{
@@ -244,10 +246,12 @@ h1,h2,h3,h4 {{ color:var(--text); letter-spacing:-0.015em; }}
 [data-testid="stSidebar"] [data-testid="stExpander"] summary svg {{
   color:#D7DBE7 !important;
 }}
-[data-testid="stSidebar"] .stButton > button {{
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stFormSubmitButton > button {{
   background:#2E3140; color:#E6E9F2; border:1px solid rgba(255,255,255,0.15);
 }}
-[data-testid="stSidebar"] .stButton > button:hover {{
+[data-testid="stSidebar"] .stButton > button:hover,
+[data-testid="stSidebar"] .stFormSubmitButton > button:hover {{
   background:#383C4F; color:#FFFFFF; border-color:var(--coral);
 }}
 [data-testid="stSidebar"] .stFormSubmitButton > button[kind="primaryFormSubmit"],
@@ -853,20 +857,54 @@ h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-h
 .gl-card-head + div, [data-testid="stCaptionContainer"] p {{ line-height:1.5; }}
 
 /* ===================== LOGIN PORTAL ===================== */
+.block-container:has(.st-key-login_shell) {{
+  min-height:calc(100vh - 2rem);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding-top:1.5rem;
+  padding-bottom:1.5rem;
+}}
+[data-testid="stLayoutWrapper"]:has(> .st-key-login_shell) {{
+  width:100% !important;
+  display:flex !important;
+  justify-content:center !important;
+}}
+.st-key-login_shell {{
+  width:100% !important;
+  max-width:440px !important;
+  margin:0 auto !important;
+  gap:0.85rem !important;
+}}
+.gl-login-brand {{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  gap:4px;
+  margin-bottom:2px;
+}}
+.gl-login-brand .gl-topbar-left {{
+  justify-content:center;
+}}
+.gl-login-tagline {{
+  font-size:13px;
+  color:var(--text2);
+  font-weight:500;
+}}
 .st-key-login_topbar {{
   background:#FFFFFF !important;
-  border-radius:10px !important;
-  padding:10px 20px !important;
+  border-radius:999px !important;
+  padding:6px !important;
   box-shadow:var(--shadow-sm) !important;
   border:1px solid #DFECE9 !important;
-  margin-bottom:20px !important;
 }}
 .st-key-login_topbar > [data-testid="stVerticalBlock"] {{
   gap:0 !important;
 }}
 .st-key-login_topbar [data-testid="stButtonGroup"] [role="radiogroup"] {{
   background:#EAF4F2 !important;
-  border:1px solid #D5E7E3 !important;
+  border:none !important;
   border-radius:999px !important;
   padding:4px !important;
 }}
@@ -903,35 +941,28 @@ h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-h
 .gl-login-head {{
   background:var(--slate);
   color:#FFFFFF;
-  padding:18px 24px;
+  padding:20px 24px 18px;
   display:flex;
-  justify-content:space-between;
+  flex-direction:column;
+  justify-content:center;
   align-items:center;
-  gap:14px;
+  text-align:center;
+  gap:8px;
 }}
 .gl-login-head-student {{ border-bottom:3px solid var(--green); }}
 .gl-login-head-faculty {{ border-bottom:3px solid var(--coral); }}
-.gl-login-eyebrow {{
-  font-family:var(--font-display);
-  font-size:12px;
-  font-weight:600;
-  letter-spacing:0.10em;
-  text-transform:uppercase;
-  color:#B9C0D4;
-}}
 .gl-login-title {{
   font-family:var(--font-display);
-  font-size:26px;
+  font-size:24px;
   font-weight:700;
   letter-spacing:0.04em;
   text-transform:uppercase;
   color:#FFFFFF;
   line-height:1.1;
-  margin-top:2px;
 }}
 .gl-login-badge {{
-  width:44px;
-  height:44px;
+  width:42px;
+  height:42px;
   border-radius:999px;
   display:flex;
   align-items:center;
@@ -947,19 +978,9 @@ h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-h
   font-size:13px;
   color:var(--text2);
   line-height:1.5;
-  margin:0 0 12px;
+  text-align:center;
+  margin:0 0 14px;
 }}
-.gl-login-note {{
-  background:#F3FAF8;
-  border:1px solid #D7E8E4;
-  border-radius:8px;
-  padding:10px 12px;
-  font-size:12px;
-  color:var(--text2);
-  line-height:1.45;
-  margin-top:12px;
-}}
-.gl-login-note b {{ color:var(--slate); }}
 .gl-login-footer {{
   text-align:center;
   font-family:var(--font-display);
@@ -967,7 +988,7 @@ h1.gl-title, h1.gl-title * {{ font-size:28px !important; font-weight:700; line-h
   letter-spacing:0.12em;
   color:#6D7285;
   text-transform:uppercase;
-  margin-top:26px;
+  margin-top:6px;
 }}
 .gl-role-badge {{
   display:flex;

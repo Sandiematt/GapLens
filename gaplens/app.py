@@ -10,7 +10,7 @@ import config  # noqa: E402
 from core import db, seed  # noqa: E402
 from ui import loader, profile  # noqa: E402
 from ui.flash import show_flash  # noqa: E402
-from ui.login import render_login  # noqa: E402
+from ui.login import render_faculty_switch_login, render_login  # noqa: E402
 from ui.sidebar import render_sidebar  # noqa: E402
 from ui.theme import inject_theme  # noqa: E402
 
@@ -46,6 +46,13 @@ PAGES = {
 if not profile.is_authenticated():
     pg = st.navigation(
         [st.Page(render_login, title="Sign in", icon=":material/lock:", url_path="login", default=True)],
+        position="hidden",
+    )
+    pg.run()
+elif profile.is_faculty_switch_pending():
+    pg = st.navigation(
+        [st.Page(render_faculty_switch_login, title="Faculty Sign in", icon=":material/lock:",
+                 url_path="faculty-login", default=True)],
         position="hidden",
     )
     pg.run()

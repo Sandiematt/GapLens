@@ -1,7 +1,6 @@
-"""Login screen matching the GapLens Editorial Mint & Charcoal layout.
+"""Simple center-aligned login screen for Student and Faculty portals.
 
-Top bar switches between Student Login and Faculty Login. Submitting valid
-credentials for the chosen role unlocks only that role's pages.
+Submitting valid credentials for the chosen role unlocks only that role's pages.
 """
 from __future__ import annotations
 
@@ -36,73 +35,18 @@ ICON_FACULTY = (
 
 PORTAL_COPY = {
     "Student": {
-        "crumb": "PORTAL / STUDENT LOGIN",
-        "pill_label": "Student Portal",
-        "pill_kind": "ok",
-        "hero_eyebrow": "GAPLENS · STUDENT ACCESS",
-        "hero_title": "Smart marks coaching for every CIA & ESE",
-        "hero_text": (
-            "Sign in to view your enrolled subjects, track live target scores, "
-            "diagnose question-wise mistakes, and access verified revision resources."
-        ),
-        "cards": [
-            (
-                ("GOAL TRACKER &", "CIA ANALYSIS"),
-                "LIVE TARGET STATUS",
-                "Pinpoint silly losses, time pressure, and concept gaps on every paper.",
-                components.ICON_TARGET,
-                "#43A854",
-            ),
-            (
-                ("WEAK TOPICS &", "ESE FEEDBACK"),
-                "CURATED RESOURCES",
-                "Revise top weak topics with verified links and published faculty reviews.",
-                components.ICON_BOOK,
-                "#F27D65",
-            ),
-        ],
         "head_cls": "gl-login-head-student",
         "badge_cls": "gl-login-badge-student",
         "icon": ICON_STUDENT,
-        "form_desc": "Enter your student username and password to open your dashboard.",
+        "form_desc": "Enter your student username and password to sign in.",
         "placeholder_user": "student",
-        "access_note": "<b>Student access:</b> Opens My Subjects and Subject Dashboard only.",
     },
     "Faculty": {
-        "crumb": "PORTAL / FACULTY LOGIN",
-        "pill_label": "Faculty Portal",
-        "pill_kind": "coral",
-        "hero_eyebrow": "GAPLENS · FACULTY ACCESS",
-        "hero_title": "Manage subjects, papers & class-wide insights",
-        "hero_text": (
-            "Sign in to create courses, define question papers, upload CIA & ESE marks, "
-            "publish presentation feedback, and monitor early-warning alerts."
-        ),
-        "cards": [
-            (
-                ("SUBJECTS,", "PAPERS & MARKS"),
-                "COURSE PLANS + CSV",
-                "Map questions to syllabus topics and record class marks in seconds.",
-                components.ICON_BARS,
-                "#F27D65",
-            ),
-            (
-                ("ESE SCRIPTS &", "CLASS INSIGHTS"),
-                "HEATMAPS & ALERTS",
-                "Draft answer-script feedback and spot topics the class needs to revise.",
-                components.ICON_TREND_UP,
-                "#43A854",
-            ),
-        ],
         "head_cls": "gl-login-head-faculty",
         "badge_cls": "gl-login-badge-faculty",
         "icon": ICON_FACULTY,
-        "form_desc": "Enter your faculty admin username and password to open the Faculty portal.",
+        "form_desc": "Enter your faculty username and password to sign in.",
         "placeholder_user": "admin",
-        "access_note": (
-            "<b>Faculty access:</b> Opens Subjects, Papers &amp; Marks, ESE Scripts, "
-            "Resources, and Class Insights."
-        ),
     },
 }
 
@@ -114,7 +58,7 @@ def _on_login_tab_change() -> None:
 
 
 def render_login() -> None:
-    """Render the GapLens login screen with top Student / Faculty login selector."""
+    """Render a simple center-aligned login screen with Student / Faculty switcher."""
     theme.hide_sidebar()
 
     role = st.session_state.get(LOGIN_ROLE_KEY, "Student")
@@ -122,17 +66,17 @@ def render_login() -> None:
         role = "Student"
         st.session_state[LOGIN_ROLE_KEY] = role
 
-    # ===================== 1. TOP WHITE HEADER BAR =====================
-    with st.container(key="login_topbar"):
-        tb_brand, tb_switch = st.columns([2.1, 1.5], gap="medium", vertical_alignment="center")
-        with tb_brand:
-            components.render(
-                f'<div class="gl-topbar-left">'
-                f'{components.home_topbar_brand()}'
-                f'<span class="gl-meta" style="margin-left:6px">{config.APP_TAGLINE}</span>'
-                f'</div>'
-            )
-        with tb_switch:
+    copy = PORTAL_COPY[role]
+
+    with st.container(key="login_shell"):
+        components.render(
+            f'<div class="gl-login-brand">'
+            f'{components.home_topbar_brand()}'
+            f'<div class="gl-login-tagline">{config.APP_TAGLINE}</div>'
+            f'</div>'
+        )
+
+        with st.container(key="login_topbar"):
             st.session_state[LOGIN_TAB_KEY] = ROLE_TO_TAB[role]
             st.segmented_control(
                 "Login portal",
@@ -143,42 +87,13 @@ def render_login() -> None:
                 on_change=_on_login_tab_change,
             )
 
-    show_flash()
+        show_flash()
 
-    copy = PORTAL_COPY[role]
-
-    # ===================== 2. BREADCRUMB & PORTAL CHIPS =====================
-    chips = (
-        components.pill("CHRIST University", "gold")
-        + components.pill(copy["pill_label"], copy["pill_kind"])
-    )
-    components.render(components.home_breadcrumb(f"{role} Login", copy["crumb"], chips))
-
-    # ===================== 3. OVERVIEW + SIGN-IN CARD =====================
-    left, right = st.columns([1.12, 1.0], gap="large")
-
-    with left:
-        components.render(components.hero_banner(
-            copy["hero_title"],
-            copy["hero_text"],
-            eyebrow=copy["hero_eyebrow"],
-        ))
-        st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
-        mini_html = "".join(
-            components.home_mini_card(lines, metric, sub, icon, accent)
-            for lines, metric, sub, icon, accent in copy["cards"]
-        )
-        components.render(f'<div class="gl-mini-stack">{mini_html}</div>')
-
-    with right:
         with st.container(border=True, key="card_login"):
             components.render(
                 f'<div class="gl-login-head {copy["head_cls"]}">'
-                f'<div>'
-                f'<div class="gl-login-eyebrow">ROLE-RESTRICTED SIGN IN</div>'
-                f'<div class="gl-login-title">{role} Login</div>'
-                f'</div>'
                 f'<div class="gl-login-badge {copy["badge_cls"]}">{copy["icon"]}</div>'
+                f'<div class="gl-login-title">{role} Login</div>'
                 f'</div>'
             )
             with st.container(key="login_form_body"):
@@ -227,13 +142,94 @@ def render_login() -> None:
                         if other:
                             st.error(
                                 f"Those credentials belong to {other} Login. "
-                                f"Switch to {other} Login at the top."
+                                f"Switch to {other} Login above."
                             )
                         else:
                             st.error(f"Invalid {role.lower()} username or password.")
 
-                components.render(f'<div class="gl-login-note">{copy["access_note"]}</div>')
+        components.render(
+            f'<div class="gl-login-footer">{config.APP_NAME} &middot; {config.APP_TAGLINE} &middot; 2026</div>'
+        )
 
-    components.render(
-        f'<div class="gl-login-footer">{config.APP_NAME} &middot; {config.APP_TAGLINE} &middot; 2026</div>'
-    )
+
+def render_faculty_switch_login() -> None:
+    """Render a dedicated Faculty login screen when switching from the Student portal."""
+    theme.hide_sidebar()
+    copy = PORTAL_COPY["Faculty"]
+
+    with st.container(key="login_shell"):
+        components.render(
+            f'<div class="gl-login-brand">'
+            f'{components.home_topbar_brand()}'
+            f'<div class="gl-login-tagline">{config.APP_TAGLINE}</div>'
+            f'</div>'
+        )
+
+        show_flash()
+
+        with st.container(border=True, key="card_login"):
+            components.render(
+                f'<div class="gl-login-head {copy["head_cls"]}">'
+                f'<div class="gl-login-badge {copy["badge_cls"]}">{copy["icon"]}</div>'
+                f'<div class="gl-login-title">Faculty Login</div>'
+                f'</div>'
+            )
+            with st.container(key="login_form_body"):
+                components.render(
+                    '<p class="gl-login-desc">'
+                    'Enter your faculty username and password to switch to the Faculty portal.'
+                    '</p>'
+                )
+                with st.form("switch_faculty_form", clear_on_submit=False, border=False):
+                    username = st.text_input(
+                        "Username",
+                        key="switch_faculty_user",
+                        placeholder=copy["placeholder_user"],
+                    )
+                    password = st.text_input(
+                        "Password",
+                        type="password",
+                        key="switch_faculty_pass",
+                        placeholder="Enter password",
+                    )
+                    submitted = st.form_submit_button(
+                        "Sign in to Faculty Portal",
+                        type="primary",
+                        width="stretch",
+                    )
+
+                if submitted:
+                    if not username.strip() or not password:
+                        st.error("Please enter both username and password.")
+                    elif profile.authenticate("Faculty", username, password):
+                        loader.show_loading_bar(
+                            "Signing in · Faculty Portal",
+                            [
+                                (25, "Verifying faculty credentials…"),
+                                (65, "Loading courses, papers & class insights…"),
+                                (100, "Opening Faculty Portal…"),
+                            ],
+                        )
+                        profile.switch_to_faculty(username)
+                        flash("Switched to the Faculty portal.")
+                        st.rerun()
+                    elif profile.matching_role(username, password) == "Student":
+                        st.error(
+                            "Those credentials belong to Student Login. "
+                            "Enter Faculty credentials to switch."
+                        )
+                    else:
+                        st.error("Invalid faculty username or password.")
+
+                if st.button(
+                    "Back to Student Portal",
+                    key="switch_faculty_cancel",
+                    icon=":material/arrow_back:",
+                    width="stretch",
+                ):
+                    profile.cancel_faculty_switch()
+                    st.rerun()
+
+        components.render(
+            f'<div class="gl-login-footer">{config.APP_NAME} &middot; {config.APP_TAGLINE} &middot; 2026</div>'
+        )

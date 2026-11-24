@@ -441,8 +441,8 @@ ICON_ARROW_DOWN = (
 _TOPBAR_LOGO = (
     '<svg viewBox="0 0 36 36" width="34" height="34" fill="none">'
     '<circle cx="18" cy="18" r="17" fill="#262833"/>'
-    '<path d="M22 1.5 A17 17 0 0 1 22 34.5 A13 13 0 0 0 22 1.5 Z" fill="#F27D65"/>'
-    '<text x="15.5" y="23.5" text-anchor="middle" fill="#F27D65" '
+    '<path d="M22 1.48 A17 17 0 0 1 22 34.52 A21 21 0 0 0 22 1.48 Z" fill="#F27D65"/>'
+    '<text x="16.5" y="24" text-anchor="middle" fill="#F27D65" '
     'font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="18">G</text></svg>')
 _TOPBAR_SEARCH = (
     '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" '
